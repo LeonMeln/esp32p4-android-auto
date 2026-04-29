@@ -76,7 +76,9 @@ static esp_err_t start_ap(void)
     wifi_config_t cfg = {
         .ap = {
             .channel = CONFIG_AA_AP_CHANNEL,
-            .max_connection = 1,
+            /* AA Wireless only ever pairs with one phone, but bench testing
+             * is much friendlier with a few extra slots for laptops. */
+            .max_connection = 4,
             .authmode = WIFI_AUTH_WPA2_PSK,
             .pmf_cfg.required = false,
         },

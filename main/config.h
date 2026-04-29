@@ -10,5 +10,7 @@
 #define AA_TCP_PORT            5277
 #define AA_MDNS_HOSTNAME       "android-auto"
 #define AA_MDNS_INSTANCE_NAME  "ESP32-P4 Android Auto"
-#define AA_MDNS_SERVICE_TYPE   "_androidauto"
+/* Wireless Helper APK browses for _aawireless._tcp; this is the de-facto
+ * service type used by hostapd-based AA dongles. */
+#define AA_MDNS_SERVICE_TYPE   "_aawireless"
 #define AA_MDNS_PROTO          "_tcp"
