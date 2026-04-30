@@ -33,7 +33,7 @@ esp_err_t ota_screen_init(void)
     }
     bsp_display_backlight_on();
 
-    if (!bsp_display_lock(0)) {
+    if (bsp_display_lock(0) != ESP_OK) {
         return ESP_FAIL;
     }
 
@@ -83,7 +83,7 @@ void ota_screen_show(const char *subtitle)
     if (!s_initialized) {
         return;
     }
-    if (bsp_display_lock(0)) {
+    if (bsp_display_lock(0) == ESP_OK) {
         if (subtitle) {
             lv_label_set_text(s_subtitle, subtitle);
         }
@@ -99,7 +99,7 @@ void ota_screen_set_progress(uint32_t done, uint32_t total)
     }
     int pct = (int)((uint64_t)done * 100 / total);
     if (pct > 100) pct = 100;
-    if (bsp_display_lock(0)) {
+    if (bsp_display_lock(0) == ESP_OK) {
         lv_bar_set_value(s_bar, pct, LV_ANIM_OFF);
         char buf[16];
         snprintf(buf, sizeof(buf), "%d%%", pct);
@@ -113,7 +113,7 @@ void ota_screen_set_status(const char *line)
     if (!s_initialized) {
         return;
     }
-    if (bsp_display_lock(0)) {
+    if (bsp_display_lock(0) == ESP_OK) {
         lv_label_set_text(s_status, line ? line : "");
         bsp_display_unlock();
     }
@@ -124,7 +124,7 @@ void ota_screen_hide(void)
     if (!s_initialized) {
         return;
     }
-    if (bsp_display_lock(0)) {
+    if (bsp_display_lock(0) == ESP_OK) {
         lv_obj_add_flag(s_root, LV_OBJ_FLAG_HIDDEN);
         bsp_display_unlock();
     }

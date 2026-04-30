@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include "aa_handshake.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -17,19 +18,21 @@ typedef struct {
 
 static void client_loop(int sock)
 {
-    char buf[256];
+    if (aa_handshake_run(sock) != ESP_OK) {
+        ESP_LOGW(TAG, "handshake failed, dropping client");
+        return;
+    }
+
+    /* Encrypted AA channel ops are not implemented yet — we just
+     * log post-auth bytes (they're TLS-encrypted records carrying
+     * the next AA frames). */
+    char buf[1024];
     while (true) {
         int n = recv(sock, buf, sizeof(buf), 0);
-        if (n < 0) {
-            ESP_LOGW(TAG, "recv errno %d", errno);
-            return;
-        }
-        if (n == 0) {
-            ESP_LOGI(TAG, "peer closed");
-            return;
-        }
-        ESP_LOGI(TAG, "rx %d bytes", n);
-        ESP_LOG_BUFFER_HEX_LEVEL(TAG, buf, n, ESP_LOG_DEBUG);
+        if (n < 0) { ESP_LOGW(TAG, "recv errno %d", errno); return; }
+        if (n == 0) { ESP_LOGI(TAG, "peer closed"); return; }
+        ESP_LOGI(TAG, "post-auth rx %d bytes", n);
+        ESP_LOG_BUFFER_HEXDUMP(TAG, buf, n > 64 ? 64 : n, ESP_LOG_INFO);
     }
 }
 
@@ -93,6 +96,7 @@ esp_err_t tcp_server_start(uint16_t port)
     static server_ctx_t ctx;
     ctx.port = port;
 
-    BaseType_t ok = xTaskCreate(accept_task, "aa_tcp", 4096, &ctx, 5, NULL);
+    /* mbedTLS handshake puts a few KiB of working state on the stack; 8 KiB is comfortable. */
+    BaseType_t ok = xTaskCreate(accept_task, "aa_tcp", 8192, &ctx, 5, NULL);
     return (ok == pdPASS) ? ESP_OK : ESP_ERR_NO_MEM;
 }

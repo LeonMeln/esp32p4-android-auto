@@ -12,6 +12,19 @@
 #include "freertos/event_groups.h"
 #include "sdkconfig.h"
 
+/* If main/bench_wifi.h is present (gitignored), force STA mode on those
+ * creds regardless of Kconfig role. Lets a dev join an existing network
+ * for protocol testing without rebuilding sdkconfig. */
+#if __has_include("bench_wifi.h")
+#include "bench_wifi.h"
+#define WIFI_BENCH_OVERRIDE 1
+#else
+#define WIFI_BENCH_OVERRIDE 0
+#endif
+
+#define WIFI_USE_STA (WIFI_BENCH_OVERRIDE || CONFIG_AA_WIFI_ROLE_STA)
+#define WIFI_USE_AP  (!WIFI_BENCH_OVERRIDE && CONFIG_AA_WIFI_ROLE_AP)
+
 static const char *TAG = "wifi";
 
 #define WIFI_READY_BIT BIT0
@@ -20,19 +33,26 @@ static const char *TAG = "wifi";
 static EventGroupHandle_t s_wifi_events;
 static wifi_ap_info_t s_ap_info;
 
-#if CONFIG_AA_WIFI_ROLE_STA
+#if WIFI_USE_STA
 static int s_retry_count;
 #endif
 
 static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
-#if CONFIG_AA_WIFI_ROLE_STA
+#if WIFI_USE_STA
+    /* Retry budget: bench override gets unlimited (we want to keep trying
+     * until the dev's home AP is in range), Kconfig STA mode honours its limit. */
+#if WIFI_BENCH_OVERRIDE
+    const int max_retry = INT32_MAX;
+#else
+    const int max_retry = CONFIG_AA_WIFI_MAX_RETRY;
+#endif
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_count < CONFIG_AA_WIFI_MAX_RETRY) {
+        if (s_retry_count < max_retry) {
             s_retry_count++;
-            ESP_LOGW(TAG, "disconnected, retry %d/%d", s_retry_count, CONFIG_AA_WIFI_MAX_RETRY);
+            ESP_LOGW(TAG, "disconnected, retry %d", s_retry_count);
             esp_wifi_connect();
         } else {
             xEventGroupSetBits(s_wifi_events, WIFI_FAIL_BIT);
@@ -44,7 +64,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         s_retry_count = 0;
         xEventGroupSetBits(s_wifi_events, WIFI_READY_BIT);
     }
-#elif CONFIG_AA_WIFI_ROLE_AP
+#elif WIFI_USE_AP
     if (base == WIFI_EVENT && id == WIFI_EVENT_AP_START) {
         ESP_LOGI(TAG, "AP \"%s\" up on ch %u", s_ap_info.ssid, (unsigned)s_ap_info.channel);
         xEventGroupSetBits(s_wifi_events, WIFI_READY_BIT);
@@ -58,7 +78,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 #endif
 }
 
-#if CONFIG_AA_WIFI_ROLE_AP
+#if WIFI_USE_AP
 static esp_err_t start_ap(void)
 {
     esp_netif_create_default_wifi_ap();
@@ -97,21 +117,33 @@ static esp_err_t start_ap(void)
 }
 #endif
 
-#if CONFIG_AA_WIFI_ROLE_STA
+#if WIFI_USE_STA
+#if WIFI_BENCH_OVERRIDE
+#define STA_SSID     BENCH_WIFI_SSID
+#define STA_PASSWORD BENCH_WIFI_PASSWORD
+#else
+#define STA_SSID     CONFIG_AA_WIFI_SSID
+#define STA_PASSWORD CONFIG_AA_WIFI_PASSWORD
+#endif
+
 static esp_err_t start_sta(void)
 {
     esp_netif_create_default_wifi_sta();
 
     wifi_config_t cfg = { 0 };
-    strlcpy((char *)cfg.sta.ssid, CONFIG_AA_WIFI_SSID, sizeof(cfg.sta.ssid));
-    strlcpy((char *)cfg.sta.password, CONFIG_AA_WIFI_PASSWORD, sizeof(cfg.sta.password));
+    strlcpy((char *)cfg.sta.ssid, STA_SSID, sizeof(cfg.sta.ssid));
+    strlcpy((char *)cfg.sta.password, STA_PASSWORD, sizeof(cfg.sta.password));
     cfg.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &cfg));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "connecting to \"%s\"", CONFIG_AA_WIFI_SSID);
+#if WIFI_BENCH_OVERRIDE
+    ESP_LOGW(TAG, "BENCH override: joining \"%s\" (bench_wifi.h present)", STA_SSID);
+#else
+    ESP_LOGI(TAG, "connecting to \"%s\"", STA_SSID);
+#endif
     return ESP_OK;
 }
 #endif
@@ -134,9 +166,9 @@ esp_err_t wifi_manager_start(void)
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID,
                                                        &on_event, NULL, NULL));
 
-#if CONFIG_AA_WIFI_ROLE_AP
+#if WIFI_USE_AP
     return start_ap();
-#elif CONFIG_AA_WIFI_ROLE_STA
+#elif WIFI_USE_STA
     return start_sta();
 #else
 #error "AA_WIFI_ROLE not selected"
@@ -160,7 +192,7 @@ esp_err_t wifi_manager_wait_ready(uint32_t timeout_ms)
 
 const wifi_ap_info_t *wifi_manager_get_ap_info(void)
 {
-#if CONFIG_AA_WIFI_ROLE_AP
+#if WIFI_USE_AP
     return &s_ap_info;
 #else
     return NULL;

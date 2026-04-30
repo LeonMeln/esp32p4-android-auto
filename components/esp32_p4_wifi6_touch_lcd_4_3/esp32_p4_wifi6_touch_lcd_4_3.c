@@ -4,6 +4,8 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_check.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_spiffs.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_mipi_dsi.h"
@@ -656,8 +658,24 @@ static lv_display_t *bsp_display_lcd_init(const bsp_display_cfg_t *cfg)
 static lv_indev_t *bsp_display_indev_init(const bsp_display_cfg_t *cfg, lv_display_t *disp)
 {
     assert(cfg != NULL);
-    BSP_ERROR_CHECK_RETURN_NULL(bsp_touch_new(cfg, &tp));
-    assert(tp);
+
+    /* GT911 cold-boot is timing-sensitive: the first I2C config read can fail
+     * if the chip is still latching its address from the INT pin. Retry. */
+    esp_err_t err = ESP_FAIL;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        tp = NULL;
+        err = bsp_touch_new(cfg, &tp);
+        if (err == ESP_OK && tp) {
+            break;
+        }
+        ESP_LOGW(TAG, "GT911 init attempt %d/3 failed (%s), retrying",
+                 attempt, esp_err_to_name(err));
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    if (err != ESP_OK || !tp) {
+        ESP_LOGE(TAG, "GT911 init gave up after 3 attempts");
+        return NULL;
+    }
 
     /* Add touch input (for selected screen) */
     const esp_lv_adapter_touch_config_t touch_cfg = ESP_LV_ADAPTER_TOUCH_DEFAULT_CONFIG(disp, tp);
@@ -689,7 +707,12 @@ lv_display_t *bsp_display_start_with_config(bsp_display_cfg_t *cfg)
 
     BSP_NULL_CHECK(disp = bsp_display_lcd_init(cfg), NULL);
 
-    BSP_NULL_CHECK(disp_indev = bsp_display_indev_init(cfg, disp), NULL);
+    /* GT911 sometimes fails its first I2C transaction on cold boot —
+     * keep the display alive without touch instead of failing the whole BSP. */
+    disp_indev = bsp_display_indev_init(cfg, disp);
+    if (!disp_indev) {
+        ESP_LOGW(TAG, "Touch init failed — display will run without touch");
+    }
 
     ESP_ERROR_CHECK(esp_lv_adapter_start());
 

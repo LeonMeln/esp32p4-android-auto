@@ -23,6 +23,11 @@ CONFIG_USB_HOST_HW_BUFFER_BIAS_BALANCED=y
 CONFIG_LV_COLOR_DEPTH_16=y
 CONFIG_LV_FONT_MONTSERRAT_32=y
 
+# Waveshare BSP — never abort() on init errors. GT911 touch occasionally
+# fails its first I2C read on cold boot (timing-sensitive); we want the
+# display to come up anyway and the caller to handle the error.
+CONFIG_BSP_ERROR_CHECK=n
+
 # ===== ESP-Hosted (P4 host <-> C6 slave over SDIO) =====
 CONFIG_ESP_HOSTED_ENABLED=y
 CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y
@@ -74,7 +79,11 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
 
 # ===== Android Auto head unit =====
-CONFIG_AA_WIFI_ROLE_AP=y
+# Default role STA: head unit joins an existing network (bench setup).
+# Creds come from main/bench_wifi.h (gitignored) when present, otherwise from
+# CONFIG_AA_WIFI_SSID/CONFIG_AA_WIFI_PASSWORD set via menuconfig.
+# Switch to CONFIG_AA_WIFI_ROLE_AP=y for SoftAP production behaviour.
+CONFIG_AA_WIFI_ROLE_STA=y
 
 # ===== C6 slave OTA on boot (firmware embedded in host bin) =====
 CONFIG_C6_OTA_ENABLED=y

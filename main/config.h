@@ -7,7 +7,9 @@
 #define CONNECTION_MODE MODE_WIRELESS_HELPER
 #endif
 
-#define AA_TCP_PORT            5277
+/* Real AA head unit listens on 5288. Wireless Helper APK has this port
+ * hardcoded — it grabs only the IP from mDNS and ignores the published port. */
+#define AA_TCP_PORT            5288
 #define AA_MDNS_HOSTNAME       "android-auto"
 #define AA_MDNS_INSTANCE_NAME  "ESP32-P4 Android Auto"
 /* Wireless Helper APK browses for _aawireless._tcp; this is the de-facto

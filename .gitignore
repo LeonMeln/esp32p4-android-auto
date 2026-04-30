@@ -13,3 +13,8 @@ tools/
 # (aasdk, openauto, headunit, waveshare_p4_4_3, WirelessAndroidAutoDongle).
 # Not committed — see CLAUDE.md for the URLs.
 research/_sources/
+
+# Local bench WiFi creds — present only on dev machines.
+# When the file exists, wifi_manager forces STA mode and joins this network
+# instead of running its own SoftAP.
+main/bench_wifi.h

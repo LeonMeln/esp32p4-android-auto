@@ -53,11 +53,11 @@ void app_main(void)
         return;
     }
 
-#if CONFIG_AA_WIFI_ROLE_AP
     const wifi_ap_info_t *ap = wifi_manager_get_ap_info();
-    ESP_LOGI(TAG, "AP \"%s\" psk \"%s\" bssid %s ch %u",
-             ap->ssid, ap->password, ap->bssid_str, (unsigned)ap->channel);
-#endif
+    if (ap) {
+        ESP_LOGI(TAG, "AP \"%s\" psk \"%s\" bssid %s ch %u",
+                 ap->ssid, ap->password, ap->bssid_str, (unsigned)ap->channel);
+    }
 
     ESP_ERROR_CHECK(mdns_advertise_start());
     ESP_ERROR_CHECK(tcp_server_start(AA_TCP_PORT));
