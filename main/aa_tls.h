@@ -47,3 +47,18 @@ esp_err_t aa_tls_handshake_step(aa_tls_t *t,
                                 uint8_t *out_buf, size_t out_capacity,
                                 size_t *out_len,
                                 bool *done);
+
+/* Encrypt plaintext into one TLS record. Output goes to out_buf
+ * (returns its length in *out_len). Reuses the BIO tx_buf. */
+esp_err_t aa_tls_encrypt(aa_tls_t *t,
+                         const uint8_t *plain, size_t plain_len,
+                         uint8_t *out_buf, size_t out_capacity,
+                         size_t *out_len);
+
+/* Decrypt one TLS record (ciphertext) into out_buf. Pumps the data
+ * through the rx BIO and consumes mbedtls_ssl_read until the record
+ * is fully consumed. *out_len is the plaintext length. */
+esp_err_t aa_tls_decrypt(aa_tls_t *t,
+                         const uint8_t *cipher, size_t cipher_len,
+                         uint8_t *out_buf, size_t out_capacity,
+                         size_t *out_len);

@@ -1,4 +1,7 @@
+#include <stdio.h>
+
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -44,12 +47,13 @@ void app_main(void)
     }
 #endif
 
-    ota_screen_hide();
+    ota_screen_show_idle("Android Auto", "Initialising Wi-Fi...");
 
 #if CONNECTION_MODE == MODE_WIRELESS_HELPER
     ESP_ERROR_CHECK(wifi_manager_start());
     if (wifi_manager_wait_ready(30000) != ESP_OK) {
         ESP_LOGE(TAG, "wifi setup failed, halting");
+        ota_screen_show_idle("Android Auto", "Wi-Fi setup failed");
         return;
     }
 
@@ -61,6 +65,25 @@ void app_main(void)
 
     ESP_ERROR_CHECK(mdns_advertise_start());
     ESP_ERROR_CHECK(tcp_server_start(AA_TCP_PORT));
+
+    /* Compose a one-line status with our IP for the idle screen.
+     * AP mode shows the SSID; STA mode shows the joined network IP. */
+    char status_line[80];
+    esp_netif_ip_info_t ip_info = {0};
+    if (ap) {
+        esp_netif_t *n = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+        if (n) esp_netif_get_ip_info(n, &ip_info);
+        snprintf(status_line, sizeof(status_line),
+                 "AP %s | %d.%d.%d.%d | port %d",
+                 ap->ssid, IP2STR(&ip_info.ip), AA_TCP_PORT);
+    } else {
+        esp_netif_t *n = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (n) esp_netif_get_ip_info(n, &ip_info);
+        snprintf(status_line, sizeof(status_line),
+                 "%d.%d.%d.%d | port %d",
+                 IP2STR(&ip_info.ip), AA_TCP_PORT);
+    }
+    ota_screen_show_idle("Waiting for phone", status_line);
 
     ESP_LOGI(TAG, "head unit ready, waiting for Wireless Helper");
 #elif CONNECTION_MODE == MODE_BT_CLASSIC

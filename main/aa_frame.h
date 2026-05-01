@@ -40,10 +40,22 @@ esp_err_t aa_frame_send_plain(int sock, aa_channel_id_t channel,
                               uint16_t msg_id,
                               const uint8_t *body, size_t body_len);
 
-/* Read one BULK frame from the socket. Returns the channel id, flag byte,
+/* Send a frame whose payload is already-formed (e.g. an encrypted blob).
+ * Caller picks the flag byte: BULK | ENCRYPT | CONTROL etc. */
+esp_err_t aa_frame_send_raw(int sock, aa_channel_id_t channel,
+                            uint8_t flags,
+                            const uint8_t *payload, size_t payload_len);
+
+/* Read one frame from the socket. Returns the channel id, flag byte,
  * and payload (allocated into out_payload up to out_capacity bytes).
- * out_payload_len is set to the actual size. The frame is rejected if it
- * doesn't fit, or if it's a multi-frame (FIRST without LAST). */
+ * out_payload_len is set to the actual size.
+ *
+ * Handles:
+ *   - BULK and LAST frames (2-byte size field)
+ *   - FIRST frames (4-byte size field — encoded payload size + total size)
+ *   - MIDDLE frames (2-byte size field)
+ *
+ * Returns ESP_ERR_NO_MEM if the frame doesn't fit in out_capacity. */
 esp_err_t aa_frame_recv(int sock,
                         aa_channel_id_t *out_channel,
                         uint8_t *out_flags,

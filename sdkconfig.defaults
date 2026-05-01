@@ -11,6 +11,9 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_HEX=y
 CONFIG_SPIRAM_SPEED_200M=y
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+# Skip the ~1 s walk over all 32 MB of PSRAM at boot. Useful only for the
+# first bring-up; once the chip is known good, it just steals boot time.
+CONFIG_SPIRAM_MEMTEST=n
 # (Skipping CONFIG_SPIRAM_XIP_FROM_PSRAM and CONFIG_CACHE_L2_CACHE_256KB:
 #  they sound like nice optimizations but eat enough internal SRAM that
 #  FreeRTOS fails to allocate the IdleTask stack on boot.)
@@ -49,6 +52,9 @@ CONFIG_ESP_HOSTED_SDIO_OPTIMIZATION_RX_STREAMING_MODE=y
 CONFIG_ESP_HOSTED_SDIO_TX_Q_SIZE=20
 CONFIG_ESP_HOSTED_SDIO_RX_Q_SIZE=20
 CONFIG_ESP_HOSTED_USE_MEMPOOL=y
+# Slave reset hold defaults to 1500 ms — that's the dominant chunk of boot.
+# 100 ms is plenty for the C6 to come up out of reset.
+CONFIG_ESP_HOSTED_SDIO_RESET_DELAY_MS=100
 
 # ===== WiFi Remote (transparent esp_wifi API on P4) =====
 CONFIG_ESP_WIFI_REMOTE_ENABLED=y
@@ -74,6 +80,9 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="32MB"
+# 120 MHz QIO is supported on ESP32-P4 with this Waveshare board's GD25 flash;
+# saves ~150 ms of app-image load time.
+CONFIG_ESPTOOLPY_FLASHFREQ_120M=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"

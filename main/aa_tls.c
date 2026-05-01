@@ -142,3 +142,67 @@ esp_err_t aa_tls_handshake_step(aa_tls_t *t,
     }
     return ESP_OK;
 }
+
+esp_err_t aa_tls_encrypt(aa_tls_t *t,
+                         const uint8_t *plain, size_t plain_len,
+                         uint8_t *out_buf, size_t out_capacity,
+                         size_t *out_len)
+{
+    *out_len = 0;
+    /* Make sure the tx scratch is empty before we drain it. */
+    t->tx_len = 0;
+
+    size_t written = 0;
+    while (written < plain_len) {
+        int n = mbedtls_ssl_write(&t->ssl, plain + written, plain_len - written);
+        if (n <= 0) {
+            char errbuf[128];
+            mbedtls_strerror(n, errbuf, sizeof(errbuf));
+            ESP_LOGE(TAG, "ssl_write: -0x%04x %s", -n, errbuf);
+            return ESP_FAIL;
+        }
+        written += (size_t)n;
+    }
+
+    if (t->tx_len > out_capacity) {
+        ESP_LOGE(TAG, "encrypt out %u > cap %u", (unsigned)t->tx_len, (unsigned)out_capacity);
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(out_buf, t->tx_buf, t->tx_len);
+    *out_len = t->tx_len;
+    t->tx_len = 0;
+    return ESP_OK;
+}
+
+esp_err_t aa_tls_decrypt(aa_tls_t *t,
+                         const uint8_t *cipher, size_t cipher_len,
+                         uint8_t *out_buf, size_t out_capacity,
+                         size_t *out_len)
+{
+    *out_len = 0;
+    esp_err_t err = aa_tls_feed_rx(t, cipher, cipher_len);
+    if (err != ESP_OK) return err;
+
+    /* Drain decrypted data until mbedtls says WANT_READ — which means the
+     * TLS record we fed has been fully consumed. */
+    while (true) {
+        int n = mbedtls_ssl_read(&t->ssl,
+                                 out_buf + *out_len,
+                                 out_capacity - *out_len);
+        if (n > 0) {
+            *out_len += (size_t)n;
+            if (*out_len == out_capacity) {
+                ESP_LOGE(TAG, "decrypt: out_buf full (%u)", (unsigned)out_capacity);
+                return ESP_ERR_NO_MEM;
+            }
+            continue;
+        }
+        if (n == MBEDTLS_ERR_SSL_WANT_READ) {
+            return ESP_OK;
+        }
+        char errbuf[128];
+        mbedtls_strerror(n, errbuf, sizeof(errbuf));
+        ESP_LOGE(TAG, "ssl_read: -0x%04x %s", -n, errbuf);
+        return ESP_FAIL;
+    }
+}

@@ -10,9 +10,11 @@
 
 static const char *TAG = "aa_hs";
 
-/* aasdk Version.hpp */
+/* aasdk Version.hpp uses 1.1, but modern gearhead negotiates 1.7 anyway.
+ * Lower-bounding to 1.1 makes phone treat us like a legacy car and may
+ * skip features needed to fully start the session. Advertise 1.7 directly. */
 #define AA_VERSION_MAJOR 1
-#define AA_VERSION_MINOR 1
+#define AA_VERSION_MINOR 7
 
 /* AuthCompleteIndication{ status = Status::OK (0) } in protobuf wire format:
  *   field 1 (varint): tag = (1 << 3) | 0 = 0x08, value = 0x00. */
@@ -104,33 +106,37 @@ static esp_err_t do_tls_handshake(int sock, aa_tls_t *tls,
     return ESP_OK;
 }
 
-esp_err_t aa_handshake_run(int sock)
+esp_err_t aa_handshake_run(int sock, aa_tls_t *tls)
 {
     esp_err_t err = do_version_handshake(sock);
     if (err != ESP_OK) return err;
 
-    /* TLS context (~16 KiB of buffers) and two 4 KiB pass-through buffers
-     * live on the heap — way too big to put on a task stack. */
-    aa_tls_t *tls = malloc(sizeof(*tls));
-    uint8_t  *out_buf = malloc(HS_BUF_SIZE);
-    uint8_t  *rx_buf  = malloc(HS_BUF_SIZE);
-    if (!tls || !out_buf || !rx_buf) {
-        free(tls); free(out_buf); free(rx_buf);
+    err = aa_tls_init(tls);
+    if (err != ESP_OK) return err;
+
+    /* Two 4 KiB pass-through buffers live on the heap — too big for the stack. */
+    uint8_t *out_buf = malloc(HS_BUF_SIZE);
+    uint8_t *rx_buf  = malloc(HS_BUF_SIZE);
+    if (!out_buf || !rx_buf) {
+        free(out_buf); free(rx_buf);
+        aa_tls_deinit(tls);
         return ESP_ERR_NO_MEM;
     }
 
-    err = aa_tls_init(tls);
-    if (err == ESP_OK) {
-        err = do_tls_handshake(sock, tls, out_buf, rx_buf);
+    err = do_tls_handshake(sock, tls, out_buf, rx_buf);
+    free(out_buf); free(rx_buf);
+    if (err != ESP_OK) {
         aa_tls_deinit(tls);
+        return err;
     }
-    free(tls); free(out_buf); free(rx_buf);
-    if (err != ESP_OK) return err;
 
     err = aa_frame_send_plain(sock, AA_CHANNEL_CONTROL,
                               AA_MSG_AUTH_COMPLETE,
                               AUTH_COMPLETE_OK, sizeof(AUTH_COMPLETE_OK));
-    if (err != ESP_OK) return err;
+    if (err != ESP_OK) {
+        aa_tls_deinit(tls);
+        return err;
+    }
     ESP_LOGI(TAG, "AuthComplete sent — auth done");
     return ESP_OK;
 }

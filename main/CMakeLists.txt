@@ -9,6 +9,8 @@ idf_component_register(
         "aa_frame.c"
         "aa_tls.c"
         "aa_handshake.c"
+        "aa_proto.c"
+        "aa_service.c"
         "aa_x509_patch.c"
     INCLUDE_DIRS "."
     REQUIRES
@@ -17,6 +19,7 @@ idf_component_register(
         esp_netif
         esp_wifi
         esp_hosted
+        esp_timer
         lwip
         mdns
         mbedtls

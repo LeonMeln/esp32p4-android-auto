@@ -9,6 +9,11 @@
 
 static const char *TAG = "aa_frame";
 
+/* Diagnostic: log every chunk of bytes coming off the wire so we can see
+ * whether gearhead is sending anything at all when our parser is blocked
+ * waiting for a full frame. */
+#define AA_FRAME_LOG_RAW 1
+
 static int recv_exact(int sock, uint8_t *buf, size_t len)
 {
     size_t got = 0;
@@ -21,29 +26,30 @@ static int recv_exact(int sock, uint8_t *buf, size_t len)
             ESP_LOGW(TAG, "recv errno %d", errno);
             return n;
         }
+#if AA_FRAME_LOG_RAW
+        ESP_LOGI(TAG, "raw recv %d bytes (need %u, have %u)",
+                 n, (unsigned)len, (unsigned)(got + n));
+        ESP_LOG_BUFFER_HEXDUMP(TAG, buf + got, n > 32 ? 32 : n, ESP_LOG_INFO);
+#endif
         got += n;
     }
     return got;
 }
 
-esp_err_t aa_frame_send_plain(int sock, aa_channel_id_t channel,
-                              uint16_t msg_id,
-                              const uint8_t *body, size_t body_len)
+esp_err_t aa_frame_send_raw(int sock, aa_channel_id_t channel,
+                            uint8_t flags,
+                            const uint8_t *payload, size_t payload_len)
 {
-    /* Header(2) + size(2) + msg_id(2) + body */
-    if (body_len > 0xFFFF - 2) {
+    if (payload_len > 0xFFFF) {
         return ESP_ERR_INVALID_SIZE;
     }
-    size_t payload_len = 2 + body_len;
     size_t total = 4 + payload_len;
     uint8_t hdr[4];
     hdr[0] = (uint8_t)channel;
-    hdr[1] = AA_FRAME_FLAG_BULK;     /* PLAIN, SPECIFIC, BULK */
+    hdr[1] = flags;
     hdr[2] = (uint8_t)(payload_len >> 8);
     hdr[3] = (uint8_t)(payload_len & 0xFF);
 
-    /* Use a small stack buffer when possible to send the whole frame in one
-     * write — keeps things simple and avoids head-of-line interleaving. */
     uint8_t stackbuf[512];
     uint8_t *frame = stackbuf;
     if (total > sizeof(stackbuf)) {
@@ -51,10 +57,8 @@ esp_err_t aa_frame_send_plain(int sock, aa_channel_id_t channel,
         if (!frame) return ESP_ERR_NO_MEM;
     }
     memcpy(frame, hdr, 4);
-    frame[4] = (uint8_t)(msg_id >> 8);
-    frame[5] = (uint8_t)(msg_id & 0xFF);
-    if (body_len) {
-        memcpy(frame + 6, body, body_len);
+    if (payload_len) {
+        memcpy(frame + 4, payload, payload_len);
     }
     int n = send(sock, frame, total, 0);
     if (frame != stackbuf) free(frame);
@@ -65,25 +69,69 @@ esp_err_t aa_frame_send_plain(int sock, aa_channel_id_t channel,
     return ESP_OK;
 }
 
+esp_err_t aa_frame_send_plain(int sock, aa_channel_id_t channel,
+                              uint16_t msg_id,
+                              const uint8_t *body, size_t body_len)
+{
+    /* msg_id(2) + body */
+    if (body_len > 0xFFFF - 2) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    size_t payload_len = 2 + body_len;
+    uint8_t stackbuf[512];
+    uint8_t *payload = stackbuf;
+    if (payload_len > sizeof(stackbuf)) {
+        payload = malloc(payload_len);
+        if (!payload) return ESP_ERR_NO_MEM;
+    }
+    payload[0] = (uint8_t)(msg_id >> 8);
+    payload[1] = (uint8_t)(msg_id & 0xFF);
+    if (body_len) {
+        memcpy(payload + 2, body, body_len);
+    }
+    /* PLAIN, SPECIFIC, BULK */
+    esp_err_t err = aa_frame_send_raw(sock, channel, AA_FRAME_FLAG_BULK,
+                                      payload, payload_len);
+    if (payload != stackbuf) free(payload);
+    return err;
+}
+
 esp_err_t aa_frame_recv(int sock,
                         aa_channel_id_t *out_channel,
                         uint8_t *out_flags,
                         uint8_t *out_payload, size_t out_capacity,
                         size_t *out_payload_len)
 {
-    uint8_t hdr[4];
-    int n = recv_exact(sock, hdr, 4);
+    uint8_t hdr[2];
+    int n = recv_exact(sock, hdr, 2);
     if (n == 0) return ESP_ERR_INVALID_STATE;   /* peer closed */
     if (n < 0) return ESP_FAIL;
 
     aa_channel_id_t channel = (aa_channel_id_t)hdr[0];
     uint8_t flags = hdr[1];
-    /* Reject FIRST/MIDDLE-only frames for now — handshake fits in one BULK. */
-    if ((flags & AA_FRAME_FLAG_BULK) != AA_FRAME_FLAG_BULK) {
-        ESP_LOGE(TAG, "multi-frame not supported (flags 0x%02x)", flags);
-        return ESP_ERR_NOT_SUPPORTED;
+
+    /* Wireless Helper sends 16 bytes of 0xFF as a "client gone" sentinel
+     * when gearhead drops the proxy. Detect early and return EOF-like. */
+    if (hdr[0] == 0xFF && hdr[1] == 0xFF) {
+        ESP_LOGW(TAG, "magic-garbage from peer — wireless helper disconnected");
+        return ESP_ERR_INVALID_STATE;
     }
-    size_t payload_len = ((size_t)hdr[2] << 8) | hdr[3];
+
+    /* FIRST-without-LAST has a 4-byte extended size (payload + total).
+     * BULK/MIDDLE/LAST have a 2-byte size field. */
+    bool is_first_only = (flags & AA_FRAME_FLAG_FIRST) &&
+                         !(flags & AA_FRAME_FLAG_LAST);
+    size_t size_field_len = is_first_only ? 4 : 2;
+
+    uint8_t size_buf[4];
+    n = recv_exact(sock, size_buf, size_field_len);
+    if (n == 0) return ESP_ERR_INVALID_STATE;
+    if (n < 0) return ESP_FAIL;
+
+    size_t payload_len = ((size_t)size_buf[0] << 8) | size_buf[1];
+    /* size_buf[2..3] of FIRST is the total message size — useful for
+     * pre-sizing the assembly buffer; we don't need it here. */
+
     if (payload_len > out_capacity) {
         ESP_LOGE(TAG, "payload %u > capacity %u", (unsigned)payload_len, (unsigned)out_capacity);
         return ESP_ERR_NO_MEM;

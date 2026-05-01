@@ -1,9 +1,12 @@
 #include "tcp_server.h"
 
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "aa_handshake.h"
+#include "aa_service.h"
+#include "aa_tls.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -18,22 +21,23 @@ typedef struct {
 
 static void client_loop(int sock)
 {
-    if (aa_handshake_run(sock) != ESP_OK) {
-        ESP_LOGW(TAG, "handshake failed, dropping client");
+    /* aa_tls_t is ~16 KiB — heap, not stack. */
+    aa_tls_t *tls = malloc(sizeof(*tls));
+    if (!tls) {
+        ESP_LOGE(TAG, "malloc tls");
         return;
     }
 
-    /* Encrypted AA channel ops are not implemented yet — we just
-     * log post-auth bytes (they're TLS-encrypted records carrying
-     * the next AA frames). */
-    char buf[1024];
-    while (true) {
-        int n = recv(sock, buf, sizeof(buf), 0);
-        if (n < 0) { ESP_LOGW(TAG, "recv errno %d", errno); return; }
-        if (n == 0) { ESP_LOGI(TAG, "peer closed"); return; }
-        ESP_LOGI(TAG, "post-auth rx %d bytes", n);
-        ESP_LOG_BUFFER_HEXDUMP(TAG, buf, n > 64 ? 64 : n, ESP_LOG_INFO);
+    if (aa_handshake_run(sock, tls) != ESP_OK) {
+        ESP_LOGW(TAG, "handshake failed, dropping client");
+        free(tls);
+        return;
     }
+
+    aa_service_run(sock, tls);
+
+    aa_tls_deinit(tls);
+    free(tls);
 }
 
 static void accept_task(void *arg)
