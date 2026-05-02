@@ -229,8 +229,12 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
     pb_w_bytes(out, cap, &pos, 1, TINY_PNG, sizeof(TINY_PNG));   /* icon 32 */
     pb_w_bytes(out, cap, &pos, 2, TINY_PNG, sizeof(TINY_PNG));   /* icon 64 */
     pb_w_bytes(out, cap, &pos, 3, TINY_PNG, sizeof(TINY_PNG));   /* icon 128 */
-    pb_w_string(out, cap, &pos, 4, "ESP32-P4 AA");                /* name */
-    pb_w_string(out, cap, &pos, 5, "espressif");                  /* brand */
+    /* Impersonating Mazda Connect to test whether Cakewalk's HU allowlist
+     * lets a known-OEM identity through where "espressif/ESP32-P4" is dropped.
+     * "Vehicle not found!" in CarSvcDataStorage suggested the (make, model)
+     * pair is part of the lookup key. */
+    pb_w_string(out, cap, &pos, 4, "Mazda Connect");              /* name */
+    pb_w_string(out, cap, &pos, 5, "Mazda");                    /* brand */
     {
         uint8_t uu[64];
         size_t  ul = build_uuid_submsg(uu, sizeof(uu));
@@ -280,9 +284,9 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
     /* Legacy car-info strings, shifted up to fields 8-15 to leave 7 for
      * channels. Most will be ignored if the new proto numbers them
      * differently — they cost nothing to include. */
-    pb_w_string(out, cap, &pos,  8, "Universal");      /* car_model */
-    pb_w_string(out, cap, &pos,  9, "2026");           /* car_year */
-    pb_w_string(out, cap, &pos, 10, "0001");           /* car_serial */
+    pb_w_string(out, cap, &pos,  8, "Mazda Connect");  /* car_model */
+    pb_w_string(out, cap, &pos,  9, "2024");           /* car_year */
+    pb_w_string(out, cap, &pos, 10, "JM1KFADL5R0123456"); /* car_serial (VIN-shaped) */
     pb_w_bool  (out, cap, &pos, 11, true);             /* lhd / driver_pos */
     pb_w_string(out, cap, &pos, 12, "1");              /* sw_build */
     pb_w_string(out, cap, &pos, 13, "1.0");            /* sw_version */
@@ -309,13 +313,14 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
      * proto. Modern gearhead's *request* uses fields 1-3 for icons and 4-6 for
      * name/brand/UUID — that's a different proto from our response, so the
      * field numbers don't conflict. We respond with the legacy aasdk schema. */
-    pb_w_string(p, cap, &pos, 2,  "ESP32-P4 AA");      /* head_unit_name */
-    pb_w_string(p, cap, &pos, 3,  "Universal");        /* car_model */
-    pb_w_string(p, cap, &pos, 4,  "2026");             /* car_year */
-    pb_w_string(p, cap, &pos, 5,  "0001");             /* car_serial */
-    pb_w_bool  (p, cap, &pos, 6,  true);               /* left_hand_drive / driver_pos */
-    pb_w_string(p, cap, &pos, 7,  "espressif");        /* manufacturer / make */
-    pb_w_string(p, cap, &pos, 8,  "ESP32-P4");         /* model */
+    /* Mazda Connect impersonation — see comment in build_sd_response (NEW). */
+    pb_w_string(p, cap, &pos, 2,  "Mazda Connect");           /* head_unit_name */
+    pb_w_string(p, cap, &pos, 3,  "Mazda Connect");           /* car_model */
+    pb_w_string(p, cap, &pos, 4,  "2024");                    /* car_year */
+    pb_w_string(p, cap, &pos, 5,  "JM1KFADL5R0123456");       /* car_serial (VIN-shaped) */
+    pb_w_bool  (p, cap, &pos, 6,  true);                      /* left_hand_drive / driver_pos */
+    pb_w_string(p, cap, &pos, 7,  "Mazda");                 /* manufacturer / make */
+    pb_w_string(p, cap, &pos, 8,  "Mazda Connect");           /* model */
     pb_w_string(p, cap, &pos, 9,  "1");                /* sw_build */
     pb_w_string(p, cap, &pos, 10, "1.0");              /* sw_version */
     pb_w_bool  (p, cap, &pos, 11, false);              /* native media during VR */
