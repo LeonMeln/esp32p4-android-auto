@@ -10,6 +10,7 @@
 
 static const char *TAG = "ota_screen";
 
+static lv_display_t *s_display;
 static lv_obj_t *s_root;
 static lv_obj_t *s_title;
 static lv_obj_t *s_subtitle;
@@ -17,6 +18,11 @@ static lv_obj_t *s_status;
 static lv_obj_t *s_bar;
 static lv_obj_t *s_pct;
 static bool s_initialized;
+
+struct _lv_display_t *ota_screen_get_display(void)
+{
+    return (struct _lv_display_t *)s_display;
+}
 
 esp_err_t ota_screen_init(void)
 {
@@ -36,7 +42,8 @@ esp_err_t ota_screen_init(void)
         .rotation = ESP_LV_ADAPTER_ROTATE_90,
         .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,
     };
-    if (!bsp_display_start_with_config(&cfg)) {
+    s_display = bsp_display_start_with_config(&cfg);
+    if (!s_display) {
         ESP_LOGE(TAG, "bsp_display_start failed");
         return ESP_FAIL;
     }

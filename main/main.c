@@ -10,6 +10,7 @@
 #include "bt_link.h"
 #include "c6_ota.h"
 #include "config.h"
+#include "display_video.h"
 #include "h264_pipe.h"
 #include "mdns_advertise.h"
 #include "ota_screen.h"
@@ -68,8 +69,13 @@ void app_main(void)
     ESP_ERROR_CHECK(mdns_advertise_start());
     ESP_ERROR_CHECK(tcp_server_start(AA_TCP_PORT));
 
-    /* Spin up the H.264 decode pipe before the AAP service hands the first
-     * video frame in. push() is a no-op until the ring buffer is allocated. */
+    /* Display sink first — it captures the panel handle from BSP and waits
+     * idle until first frame. Then the H.264 pipe; push() is a no-op until
+     * the ring buffer is allocated, so it must be ready before the first
+     * AVMediaIndication arrives. */
+    if (display_video_init() != ESP_OK) {
+        ESP_LOGW(TAG, "video sink failed — frames will be decoded but not shown");
+    }
     if (h264_pipe_init() != ESP_OK) {
         ESP_LOGW(TAG, "H.264 decoder failed to start — video will be silent");
     }

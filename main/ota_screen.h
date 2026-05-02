@@ -18,3 +18,9 @@ void ota_screen_hide(void);
 /* Replace OTA progress UI with a two-line idle status (used after OTA
  * completes / is skipped to show "Waiting for Android Auto" + IP). */
 void ota_screen_show_idle(const char *line1, const char *line2);
+
+/* Returns the lv_display_t* the BSP gave us at init time, or NULL if the
+ * display was disabled (CONFIG_C6_OTA_DISPLAY_PROGRESS=n). The video sink
+ * needs this to drive the LVGL adapter into dummy-draw mode. */
+struct _lv_display_t;
+struct _lv_display_t *ota_screen_get_display(void);

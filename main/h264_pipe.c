@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "display_video.h"
 #include "esp_h264_dec.h"
 #include "esp_h264_dec_param.h"
 #include "esp_h264_dec_sw.h"
@@ -95,14 +96,21 @@ static void decoder_task(void *arg)
             if (out.out_size > 0) {
                 s_decoded_frames++;
                 s_decode_total_us += (uint64_t)dt;
-                if (!seen_resolution && s_dec_param) {
-                    esp_h264_resolution_t res = {0};
-                    if (esp_h264_dec_get_resolution(s_dec_param, &res)
-                            == ESP_H264_ERR_OK) {
-                        ESP_LOGI(TAG, "first frame %ux%u, %u bytes I420",
-                                 res.width, res.height, (unsigned)out.out_size);
-                        seen_resolution = true;
-                    }
+                esp_h264_resolution_t res = {0};
+                bool have_res = (s_dec_param &&
+                    esp_h264_dec_get_resolution(s_dec_param, &res)
+                        == ESP_H264_ERR_OK);
+                if (!seen_resolution && have_res) {
+                    ESP_LOGI(TAG, "first frame %ux%u, %u bytes I420",
+                             res.width, res.height, (unsigned)out.out_size);
+                    seen_resolution = true;
+                }
+                if (have_res) {
+                    /* Hand off to the display sink. PPA + dummy_draw_blit
+                     * happen synchronously inside; if it stalls we'd see
+                     * dropped frames before phone ack timeouts hit. */
+                    display_video_show_yuv420(out.outbuf,
+                                              res.width, res.height);
                 }
             }
 

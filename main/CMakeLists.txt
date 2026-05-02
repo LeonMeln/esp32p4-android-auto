@@ -14,6 +14,7 @@ idf_component_register(
         "aa_x509_patch.c"
         "bt_link.c"
         "h264_pipe.c"
+        "display_video.c"
     INCLUDE_DIRS "."
     REQUIRES
         nvs_flash
@@ -23,6 +24,9 @@ idf_component_register(
         esp_hosted
         esp_timer
         esp_ringbuf
+        esp_lcd
+        esp_mm
+        esp_driver_ppa
         lwip
         mdns
         mbedtls
@@ -30,6 +34,7 @@ idf_component_register(
         c6_ota_partition
         esp32_p4_wifi6_touch_lcd_4_3
         espressif__esp_h264
+        espressif__esp_lvgl_adapter
 )
 
 # Reroute mbedTLS's UTCTime parser to our offset-tolerant wrapper. Required
