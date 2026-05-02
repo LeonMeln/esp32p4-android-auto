@@ -61,14 +61,18 @@ static const char *TAG = "aa_svc";
  * the decoded frames to the 800x480 panel via the ESP32-P4 PPA. */
 static size_t build_video_av_channel(uint8_t *out, size_t cap)
 {
-    /* Inner VideoConfig submessage. */
+    /* Inner VideoConfig submessage. Resolution enum from aasdk's
+     * VideoResolutionEnum.proto: 1=_480p (854×480), 2=_720p (1280×720),
+     * 3=_1080p. We pick 480p so the SW esp_h264 decoder on P4 can keep up
+     * (Espressif benchmark: 31 fps @ 640×480 single-core); PPA upscales
+     * the decoded frames to the 800×480 panel. */
     uint8_t vcfg[32];
     size_t  vp = 0;
-    pb_w_uint32(vcfg, sizeof(vcfg), &vp, 1, 2);   /* resolution = 1280x720 */
+    pb_w_uint32(vcfg, sizeof(vcfg), &vp, 1, 1);   /* resolution = 854×480 (_480p) */
     pb_w_uint32(vcfg, sizeof(vcfg), &vp, 2, 1);   /* fps = 30 */
     pb_w_uint32(vcfg, sizeof(vcfg), &vp, 3, 0);   /* margin_width */
     pb_w_uint32(vcfg, sizeof(vcfg), &vp, 4, 0);   /* margin_height */
-    pb_w_uint32(vcfg, sizeof(vcfg), &vp, 5, 160); /* dpi — typical 720p car */
+    pb_w_uint32(vcfg, sizeof(vcfg), &vp, 5, 140); /* dpi — typical 480p car */
 
     size_t pos = 0;
     pb_w_uint32(out, cap, &pos, 1, 3);           /* stream_type = VIDEO */
@@ -700,6 +704,30 @@ static esp_err_t send_av_media_ack(int sock, aa_tls_t *tls,
                           body, bp, cipher_buf, cipher_cap);
 }
 
+/* Per-second video-rate counter — tracks AV media bytes/frames coming from
+ * the phone so we can sanity-check that 30 fps is actually flowing without
+ * leaving per-frame logs on. Called from the AV media path after the ack.
+ * Channel-agnostic for now (we only have one video channel). */
+static void video_stats_tick(size_t body_len)
+{
+    static int64_t  window_start_us;
+    static uint32_t frames;
+    static uint64_t bytes;
+    int64_t now = esp_timer_get_time();
+    if (window_start_us == 0) window_start_us = now;
+    frames += 1;
+    bytes  += body_len;
+    if (now - window_start_us >= 1000000) {
+        ESP_LOGI(TAG, "video stats: %u frames, %llu KiB in last %llu ms",
+                 (unsigned)frames,
+                 (unsigned long long)(bytes / 1024),
+                 (unsigned long long)((now - window_start_us) / 1000));
+        window_start_us = now;
+        frames = 0;
+        bytes  = 0;
+    }
+}
+
 /* SensorStartRequest{ type, refresh_interval } → SensorStartResponse{ status=OK }
  * followed by an initial SensorEvent for the requested sensor type.
  *
@@ -1010,9 +1038,13 @@ esp_err_t aa_service_run(int sock, aa_tls_t *tls)
             } else if ((kind == CH_KIND_AV_VIDEO || kind == CH_KIND_AV_AUDIO) &&
                        (msg_id == AA_MSG_AV_MEDIA_DATA_TS ||
                         msg_id == AA_MSG_AV_MEDIA_DATA)) {
-                /* Drop the bytes for now — the H.264 decoder isn't wired in
-                 * yet — but acking is what keeps the stream alive. */
+                /* Ack first to keep the flow open, then update video stats.
+                 * Bytes are still dropped — decoder hookup lands in a later
+                 * stage. */
                 err = send_av_media_ack(sock, tls, ch, cipher, CIPHER_BUF_SIZE);
+                if (kind == CH_KIND_AV_VIDEO) {
+                    video_stats_tick(body_len);
+                }
                 handled = true;
             }
             if (!handled) {
