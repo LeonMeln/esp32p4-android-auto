@@ -23,13 +23,15 @@ typedef struct {
     mbedtls_x509_crt cert;
     mbedtls_pk_context pkey;
 
-    /* Inbound buffer — what we received from peer that mbedTLS hasn't read yet. */
-    uint8_t  rx_buf[8192];
+    /* Inbound / outbound BIO buffers must fit at least one full TLS record.
+     * Sized at 24 KiB to comfortably hold a 16 KiB TLS payload plus headroom —
+     * H.264 I-frames from gearhead routinely arrive as ~16 KB ciphertext and
+     * the previous 8 KiB sizing overflowed at the first keyframe. */
+    uint8_t  rx_buf[24576];
     size_t   rx_len;
     size_t   rx_off;
 
-    /* Outbound buffer — what mbedTLS wants to send but we haven't flushed. */
-    uint8_t  tx_buf[8192];
+    uint8_t  tx_buf[24576];
     size_t   tx_len;
 } aa_tls_t;
 

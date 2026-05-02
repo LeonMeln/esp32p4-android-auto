@@ -28,9 +28,12 @@ static const char *TAG = "aa_svc";
 /* Per-channel message ids (HU_*_CHANNEL_MESSAGE in headunit's hu_aap.h).
  * The same numeric tag means different things on different channel kinds —
  * dispatch must check the channel id first, then the message id. */
+#define AA_MSG_AV_MEDIA_DATA_TS     0x0000   /* AVMediaWithTimestampIndication */
+#define AA_MSG_AV_MEDIA_DATA        0x0001   /* AVMediaIndication (no timestamp) */
 #define AA_MSG_AV_MEDIA_SETUP_REQ   0x8000
-#define AA_MSG_AV_MEDIA_START_REQ   0x8001
+#define AA_MSG_AV_MEDIA_START_REQ   0x8001   /* AVChannelStartIndication */
 #define AA_MSG_AV_MEDIA_SETUP_RESP  0x8003
+#define AA_MSG_AV_MEDIA_ACK         0x8004   /* AVMediaAckIndication */
 #define AA_MSG_AV_VIDEO_FOCUS_REQ   0x8007
 #define AA_MSG_AV_VIDEO_FOCUS_IND   0x8008
 #define AA_MSG_SENSOR_START_REQ     0x8001
@@ -39,9 +42,11 @@ static const char *TAG = "aa_svc";
 #define AA_MSG_INPUT_BINDING_REQ    0x8002
 #define AA_MSG_INPUT_BINDING_RESP   0x8003
 
-/* Buffer sizes — generous since these live on the heap, not the stack. */
-#define CIPHER_BUF_SIZE     16384   /* one TLS record max */
-#define PLAIN_BUF_SIZE      16384
+/* Buffer sizes — generous since these live on the heap, not the stack.
+ * 32 KiB so that a single AA frame can fit even when phone bundles a full
+ * H.264 I-frame in one shot; observed up to ~16 KB on the wire so far. */
+#define CIPHER_BUF_SIZE     32768
+#define PLAIN_BUF_SIZE      32768
 #define SCRATCH_SIZE        8192    /* protobuf scratch */
 
 /* ---------- Service Discovery response builder ---------- */
@@ -413,38 +418,74 @@ static esp_err_t send_encrypted(int sock, aa_tls_t *tls,
     if (err != ESP_OK) return err;
 
     /* aasdk's "MessageType" field in the flag byte:
-     *   - SPECIFIC (0) for everything on the Control channel
-     *     (Version, SD, AuthComplete, AudioFocus, NavFocus, Ping...)
-     *   - CONTROL  (4) for channel-management messages on AV/Sensor/Input
-     *     channels (ChannelOpenResponse, AVSetupResponse, SensorStart...)
-     *   - SPECIFIC (0) for data on those channels (video frames etc.)
+     *   - SPECIFIC (0): everything on the Control channel, AND data/focus/
+     *     sensor messages on AV/Sensor/Input channels.
+     *   - CONTROL  (4): only ChannelOpenRequest/Response (channel-management
+     *     messages) on AV/Sensor/Input channels.
      *
-     * Misnomer alert: the bit is named "CONTROL" but it does NOT mean
-     * "this is on the control channel" — it means the opposite. */
+     * Earlier this set CONTROL for *every* non-control-channel message,
+     * which made gearhead silently drop our MediaSetupResponse and
+     * VideoFocusIndication on the video channel. With those dropped, phone
+     * never reaches "ready" and never sends AVChannelStartIndication, so
+     * H.264 frames never arrive. See aasdk's VideoServiceChannel.cpp:
+     * only sendChannelOpenResponse uses MessageType::CONTROL. */
     uint8_t flags = AA_FRAME_FLAG_BULK | AA_FRAME_FLAG_ENCRYPT;
-    if (channel != AA_CHANNEL_CONTROL) flags |= AA_FRAME_FLAG_CONTROL;
+    if (channel != AA_CHANNEL_CONTROL && msg_id == AA_MSG_CHANNEL_OPEN_RESP)
+        flags |= AA_FRAME_FLAG_CONTROL;
     ESP_LOGI(TAG, "tx ch=%d msg=0x%04x plain=%u cipher=%u",
              channel, msg_id, (unsigned)body_len, (unsigned)cipher_len);
     return aa_frame_send_raw(sock, channel, flags, cipher_buf, cipher_len);
 }
 
-/* Decrypt one received frame's payload. Returns the inner [msg_id][body]. */
+/* Decrypt one logical AA message — possibly spanning multiple FIRST/MIDDLE/LAST
+ * fragments — and return the assembled inner [msg_id][body].
+ *
+ * AAP fragments a message when its plaintext doesn't fit in a single TLS record
+ * (~16 KB). aasdk decrypts each fragment as a standalone TLS record and
+ * concatenates the resulting plaintext, so we mirror that: loop reading frames
+ * on the same channel, decrypting each, until BULK or LAST is seen. */
 static esp_err_t recv_decrypted(int sock, aa_tls_t *tls,
                                 aa_channel_id_t *out_ch,
                                 uint8_t *cipher_buf, size_t cipher_cap,
                                 uint8_t *plain_buf, size_t plain_cap,
                                 size_t *plain_len)
 {
-    uint8_t flags;
-    size_t cipher_len;
-    esp_err_t err = aa_frame_recv(sock, out_ch, &flags,
-                                  cipher_buf, cipher_cap, &cipher_len);
-    if (err != ESP_OK) return err;
-    if (!(flags & AA_FRAME_FLAG_ENCRYPT)) {
-        ESP_LOGW(TAG, "unexpected plaintext frame post-auth (flags 0x%02x)", flags);
-        return ESP_ERR_INVALID_STATE;
+    *plain_len = 0;
+    aa_channel_id_t first_ch = 0;
+    bool have_first = false;
+
+    while (true) {
+        aa_channel_id_t ch;
+        uint8_t flags;
+        size_t cipher_len;
+        esp_err_t err = aa_frame_recv(sock, &ch, &flags,
+                                      cipher_buf, cipher_cap, &cipher_len);
+        if (err != ESP_OK) return err;
+        if (!(flags & AA_FRAME_FLAG_ENCRYPT)) {
+            ESP_LOGW(TAG, "unexpected plaintext frame post-auth (flags 0x%02x)", flags);
+            return ESP_ERR_INVALID_STATE;
+        }
+        if (have_first && ch != first_ch) {
+            ESP_LOGE(TAG, "intertwined fragments: had ch=%d, got ch=%d",
+                     first_ch, ch);
+            return ESP_ERR_INVALID_STATE;
+        }
+        first_ch = ch;
+        have_first = true;
+
+        size_t got = 0;
+        err = aa_tls_decrypt(tls, cipher_buf, cipher_len,
+                             plain_buf + *plain_len, plain_cap - *plain_len,
+                             &got);
+        if (err != ESP_OK) return err;
+        *plain_len += got;
+
+        bool is_last = (flags & AA_FRAME_FLAG_LAST) != 0;
+        if (is_last) {
+            *out_ch = ch;
+            return ESP_OK;
+        }
     }
-    return aa_tls_decrypt(tls, cipher_buf, cipher_len, plain_buf, plain_cap, plain_len);
 }
 
 /* ---------- Message handlers ---------- */
@@ -605,6 +646,51 @@ static ch_kind_t channel_kind(aa_channel_id_t ch)
     }
 }
 
+/* Per-AV-channel session id captured from AVChannelStartIndication. The phone
+ * picks a small int32 (typically 0 or 1) when starting media on a channel and
+ * expects every AVMediaAckIndication we send back to echo it. Indexed by raw
+ * channel id 0..7, so we can directly use ch as the index. */
+static int32_t s_av_session[8];
+
+/* AVChannelStartIndication{ session, config }. Phone sends this on the video
+ * or audio channel to begin streaming. We don't need to reply, but we MUST
+ * remember session — every AVMediaWithTimestampIndication we receive next
+ * must be acked with this same session number. */
+static void handle_av_start(aa_channel_id_t ch,
+                            const uint8_t *body, size_t body_len)
+{
+    size_t pos = 0;
+    pb_field_t f;
+    int32_t session = 0;
+    uint32_t config = 0;
+    while (pb_read_field(body, body_len, &pos, &f)) {
+        if (f.wire == 0 && f.field == 1) session = (int32_t)f.varint;
+        else if (f.wire == 0 && f.field == 2) config = (uint32_t)f.varint;
+    }
+    if (ch < 8) s_av_session[ch] = session;
+    ESP_LOGI(TAG, "AVChannelStart ch=%d session=%d config=%u",
+             ch, (int)session, (unsigned)config);
+}
+
+/* Send AVMediaAckIndication{ session, value=1 } on the AV channel to keep the
+ * media flow going. Without this, phone fills its max_unacked window (we
+ * advertise 1) after a handful of frames and stops sending — observed as
+ * "20 frames in 5 seconds, then 43 seconds of silence" before this hook. */
+static esp_err_t send_av_media_ack(int sock, aa_tls_t *tls,
+                                   aa_channel_id_t ch,
+                                   uint8_t *cipher_buf, size_t cipher_cap)
+{
+    int32_t session = (ch < 8) ? s_av_session[ch] : 0;
+    uint8_t body[16];
+    size_t  bp = 0;
+    /* int32 with positive value encodes identically to uint32 in protobuf
+     * varint wire format, so we can reuse pb_w_uint32 here. */
+    pb_w_uint32(body, sizeof(body), &bp, 1, (uint32_t)session);
+    pb_w_uint32(body, sizeof(body), &bp, 2, 1);
+    return send_encrypted(sock, tls, ch, AA_MSG_AV_MEDIA_ACK,
+                          body, bp, cipher_buf, cipher_cap);
+}
+
 /* SensorStartRequest{ type, refresh_interval } → SensorStartResponse{ status=OK }
  * followed by an initial SensorEvent for the requested sensor type.
  *
@@ -750,16 +836,17 @@ static esp_err_t handle_av_setup(int sock, aa_tls_t *tls,
         if (err != ESP_OK) return err;
     }
 
-    /* Video channel: push VideoFocus{mode=FOCUSED, unrequested=true}.
-     * `unrequested=true` because the HU is initiating focus on its own,
-     * not in response to a phone-side VideoFocusRequest — matches
-     * Mazda/Desktop's MediaSetupComplete→VideoFocusHappened(HEADUNIT) path. */
+    /* Video channel: push VideoFocus{mode=FOCUSED, unrequested=false}.
+     * Despite us emitting it without a prior VideoFocusRequest, openauto's
+     * VideoService.cpp always sets unrequested=false — gearhead uses this
+     * field as the gate that finally triggers AVChannelStartIndication and
+     * starts streaming H.264. unrequested=true makes it sit and wait. */
     if (channel_kind(ch) == CH_KIND_AV_VIDEO) {
         uint8_t vf[8];
         size_t  vp = 0;
         pb_w_uint32(vf, sizeof(vf), &vp, 1, 1 /* VIDEO_FOCUS_MODE_FOCUSED */);
-        pb_w_bool  (vf, sizeof(vf), &vp, 2, true);
-        ESP_LOGI(TAG, "VideoFocus ch=%d FOCUSED unrequested=true (proactive)", ch);
+        pb_w_bool  (vf, sizeof(vf), &vp, 2, false);
+        ESP_LOGI(TAG, "VideoFocus ch=%d FOCUSED unrequested=false", ch);
         err = send_encrypted(sock, tls, ch, AA_MSG_AV_VIDEO_FOCUS_IND,
                              vf, vp, cipher_buf, cipher_cap);
         if (err != ESP_OK) return err;
@@ -898,6 +985,17 @@ esp_err_t aa_service_run(int sock, aa_tls_t *tls)
                        msg_id == AA_MSG_AV_MEDIA_SETUP_REQ) {
                 err = handle_av_setup(sock, tls, ch, body, body_len,
                                       cipher, CIPHER_BUF_SIZE);
+                handled = true;
+            } else if ((kind == CH_KIND_AV_VIDEO || kind == CH_KIND_AV_AUDIO) &&
+                       msg_id == AA_MSG_AV_MEDIA_START_REQ) {
+                handle_av_start(ch, body, body_len);
+                handled = true;
+            } else if ((kind == CH_KIND_AV_VIDEO || kind == CH_KIND_AV_AUDIO) &&
+                       (msg_id == AA_MSG_AV_MEDIA_DATA_TS ||
+                        msg_id == AA_MSG_AV_MEDIA_DATA)) {
+                /* Drop the bytes for now — the H.264 decoder isn't wired in
+                 * yet — but acking is what keeps the stream alive. */
+                err = send_av_media_ack(sock, tls, ch, cipher, CIPHER_BUF_SIZE);
                 handled = true;
             }
             if (!handled) {

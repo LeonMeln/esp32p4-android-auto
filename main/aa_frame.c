@@ -117,19 +117,23 @@ esp_err_t aa_frame_recv(int sock,
         return ESP_ERR_INVALID_STATE;
     }
 
-    /* FIRST-without-LAST has a 4-byte extended size (payload + total).
-     * BULK/MIDDLE/LAST have a 2-byte size field. */
+    /* FIRST-without-LAST uses an EXTENDED size field: 2-byte fragment size
+     * followed by 4-byte total message size = 6 bytes. BULK/MIDDLE/LAST use
+     * a SHORT 2-byte size field. Earlier this was 4 bytes which fell apart
+     * the moment phone fragmented an H.264 keyframe — we'd swallow only 4
+     * of the 6 size bytes, leaving 2 bytes of "total size" stuck at the
+     * start of the next frame, garbling every subsequent header. */
     bool is_first_only = (flags & AA_FRAME_FLAG_FIRST) &&
                          !(flags & AA_FRAME_FLAG_LAST);
-    size_t size_field_len = is_first_only ? 4 : 2;
+    size_t size_field_len = is_first_only ? 6 : 2;
 
-    uint8_t size_buf[4];
+    uint8_t size_buf[6];
     n = recv_exact(sock, size_buf, size_field_len);
     if (n == 0) return ESP_ERR_INVALID_STATE;
     if (n < 0) return ESP_FAIL;
 
     size_t payload_len = ((size_t)size_buf[0] << 8) | size_buf[1];
-    /* size_buf[2..3] of FIRST is the total message size — useful for
+    /* size_buf[2..5] of FIRST is the 4-byte total message size — useful for
      * pre-sizing the assembly buffer; we don't need it here. */
 
     if (payload_len > out_capacity) {
