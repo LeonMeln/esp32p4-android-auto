@@ -7,3 +7,8 @@ dependencies:
     version: "^0.13.0"
   espressif/mdns:
     version: "^1.8.0"
+  # SW H.264 decoder for the AA video channel. P4 has no HW decoder; the
+  # documented limit is ~31 fps at 640x480 single-core, which is why our SDR
+  # advertises 480p (see build_video_av_channel in aa_service.c).
+  espressif/esp_h264:
+    version: "*"

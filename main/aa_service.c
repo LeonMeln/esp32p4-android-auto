@@ -7,6 +7,7 @@
 #include "aa_proto.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "h264_pipe.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lwip/sockets.h"
@@ -1038,12 +1039,21 @@ esp_err_t aa_service_run(int sock, aa_tls_t *tls)
             } else if ((kind == CH_KIND_AV_VIDEO || kind == CH_KIND_AV_AUDIO) &&
                        (msg_id == AA_MSG_AV_MEDIA_DATA_TS ||
                         msg_id == AA_MSG_AV_MEDIA_DATA)) {
-                /* Ack first to keep the flow open, then update video stats.
-                 * Bytes are still dropped — decoder hookup lands in a later
-                 * stage. */
+                /* Ack first to keep the flow open, then push to the decoder
+                 * pipe. AVMediaWithTimestampIndication has an 8-byte big-
+                 * endian timestamp prefix before the H.264 NAL payload —
+                 * skip it. AVMediaIndication (no timestamp) feeds the bytes
+                 * directly; this is typically codec config (SPS/PPS). */
                 err = send_av_media_ack(sock, tls, ch, cipher, CIPHER_BUF_SIZE);
                 if (kind == CH_KIND_AV_VIDEO) {
                     video_stats_tick(body_len);
+                    const uint8_t *nal = body;
+                    size_t         nal_len = body_len;
+                    if (msg_id == AA_MSG_AV_MEDIA_DATA_TS && body_len >= 8) {
+                        nal     = body + 8;
+                        nal_len = body_len - 8;
+                    }
+                    h264_pipe_push(nal, nal_len);
                 }
                 handled = true;
             }

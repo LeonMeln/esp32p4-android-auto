@@ -10,6 +10,7 @@
 #include "bt_link.h"
 #include "c6_ota.h"
 #include "config.h"
+#include "h264_pipe.h"
 #include "mdns_advertise.h"
 #include "ota_screen.h"
 #include "tcp_server.h"
@@ -66,6 +67,12 @@ void app_main(void)
 
     ESP_ERROR_CHECK(mdns_advertise_start());
     ESP_ERROR_CHECK(tcp_server_start(AA_TCP_PORT));
+
+    /* Spin up the H.264 decode pipe before the AAP service hands the first
+     * video frame in. push() is a no-op until the ring buffer is allocated. */
+    if (h264_pipe_init() != ESP_OK) {
+        ESP_LOGW(TAG, "H.264 decoder failed to start — video will be silent");
+    }
 
     /* Hand off the AP credentials + our IP to the external D1 Mini ESP32
      * BT agent over UART1 (P4 GPIO 21/22 ↔ D1 Mini GPIO 16/17). The agent
