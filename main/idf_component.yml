@@ -12,3 +12,8 @@ dependencies:
   # advertises 480p (see build_video_av_channel in aa_service.c).
   espressif/esp_h264:
     version: "*"
+  # SIMD-accelerated image-format conversion (PIE instructions on P4).
+  # Used in display_video.c for I420 → RGB565 — meaningfully faster than the
+  # naive C BT.601 loop. PPA handles the 90° rotation on the RGB output.
+  espressif/esp_image_effects:
+    version: "^1.0.1"

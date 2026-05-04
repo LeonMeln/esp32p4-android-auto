@@ -6,6 +6,8 @@
 #include "driver/ppa.h"
 #include "esp_cache.h"
 #include "esp_check.h"
+#include "esp_imgfx_color_convert.h"
+#include "esp_imgfx_types.h"
 #include "esp_private/esp_cache_private.h"
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_ops.h"
@@ -49,6 +51,10 @@ static uint16_t           *s_landscape_rgb;
 static size_t              s_landscape_rgb_bytes;
 static uint16_t            s_landscape_w;
 static uint16_t            s_landscape_h;
+/* SIMD-accelerated I420→RGB565 converter handle from esp_image_effects.
+ * Allocated lazily once we know the source resolution; reused for every
+ * frame. Not thread-safe — only the single decoder task touches it. */
+static esp_imgfx_color_convert_handle_t s_imgfx;
 
 static bool IRAM_ATTR refresh_done_cb(esp_lcd_panel_handle_t panel,
                                       esp_lcd_dpi_panel_event_data_t *edata,
@@ -138,7 +144,17 @@ esp_err_t display_video_init(void)
  * RISC-V core; with CONFIG_ESP_H264_DUAL_TASK=y the decoder uses both
  * cores at ~50% each, leaving real headroom for this loop and for the
  * AAP / WiFi / BT loops too. */
-#define DISPLAY_CPU_YUV_FULL 1
+#define DISPLAY_CPU_YUV_FULL 0
+
+/* CPU does YUV→RGB565 into a landscape staging buffer, PPA does the
+ * 90° rotation RGB565→RGB565 into the panel-native framebuffer.
+ * Reasoning: PPA's `PPA_SRM_COLOR_MODE_YUV420` expects the JPEG-decoder
+ * macroblock layout, NOT the planar I420 esp_h264 produces — so combined
+ * YUV+rotate misreads the input and tiles the output. PPA on RGB565+
+ * rotate, however, is well-supported (Waveshare reference examples use
+ * exactly this path). Splitting saves the CPU transpose step (~5-10 ms)
+ * vs the all-CPU path. */
+#define DISPLAY_CPU_YUV_THEN_PPA_ROTATE 1
 
 esp_err_t display_video_show_yuv420(const uint8_t *yuv,
                                     uint16_t src_w, uint16_t src_h)
@@ -261,6 +277,110 @@ esp_err_t display_video_show_yuv420(const uint8_t *yuv,
         esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, 0, 0, W, H, fb);
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "panel_draw_bitmap (full cpu): %s",
+                     esp_err_to_name(err));
+        }
+        return err;
+    }
+#elif DISPLAY_CPU_YUV_THEN_PPA_ROTATE
+    /* Step 1: SIMD-accelerated I420 → RGB565 in landscape via esp_imgfx
+     * (uses ESP32-P4 PIE assembly path — ~2-4× faster than the naive
+     * BT.601 C loop in DISPLAY_CPU_YUV_FULL).
+     * Step 2: PPA does RGB565 → RGB565 with 90° rotation into the
+     * panel framebuffer. PPA on RGB+rotate is well-tested (Waveshare
+     * reference pipelines use exactly this); we keep the conversion on
+     * the CPU because PPA's YUV420 path expects the JPEG-decoder
+     * macroblock layout, not planar I420. */
+    {
+        /* Lazy-allocate the landscape RGB staging buffer + the imgfx
+         * converter, both keyed on src dimensions. esp_imgfx I420 path
+         * needs 16-pixel alignment of the source — 800×480 is fine. */
+        size_t need = ALIGN_UP((size_t)src_w * src_h * 2, s_cache_line);
+        if (s_landscape_rgb == NULL || need > s_landscape_rgb_bytes ||
+            src_w != s_landscape_w || src_h != s_landscape_h) {
+            free(s_landscape_rgb);
+            s_landscape_rgb = heap_caps_aligned_calloc(s_cache_line, 1,
+                                                       need,
+                                                       MALLOC_CAP_SPIRAM);
+            if (!s_landscape_rgb) {
+                ESP_LOGE(TAG, "landscape_rgb alloc %u failed", (unsigned)need);
+                return ESP_ERR_NO_MEM;
+            }
+            s_landscape_rgb_bytes = need;
+            s_landscape_w = src_w;
+            s_landscape_h = src_h;
+            /* Reset converter so it picks up new resolution. */
+            if (s_imgfx) {
+                esp_imgfx_color_convert_close(s_imgfx);
+                s_imgfx = NULL;
+            }
+        }
+        if (!s_imgfx) {
+            esp_imgfx_color_convert_cfg_t cfg = {
+                .in_res         = { .width = src_w, .height = src_h },
+                .in_pixel_fmt   = ESP_IMGFX_PIXEL_FMT_I420,
+                .out_pixel_fmt  = ESP_IMGFX_PIXEL_FMT_RGB565_LE,
+                .color_space_std = ESP_IMGFX_COLOR_SPACE_STD_BT601,
+            };
+            esp_imgfx_err_t e = esp_imgfx_color_convert_open(&cfg, &s_imgfx);
+            if (e != ESP_IMGFX_ERR_OK) {
+                ESP_LOGE(TAG, "esp_imgfx_color_convert_open: %d", (int)e);
+                return ESP_FAIL;
+            }
+        }
+
+        esp_imgfx_data_t in  = {
+            .data     = (uint8_t *)yuv,
+            .data_len = (uint32_t)((size_t)src_w * src_h * 3 / 2),
+        };
+        esp_imgfx_data_t out = {
+            .data     = (uint8_t *)s_landscape_rgb,
+            .data_len = (uint32_t)((size_t)src_w * src_h * 2),
+        };
+        esp_imgfx_err_t e = esp_imgfx_color_convert_process(s_imgfx, &in, &out);
+        if (e != ESP_IMGFX_ERR_OK) {
+            ESP_LOGW(TAG, "imgfx_convert: %d", (int)e);
+            return ESP_FAIL;
+        }
+        /* PPA reads via DMA bypassing the cache; flush CPU writes first. */
+        esp_cache_msync(s_landscape_rgb, s_landscape_rgb_bytes,
+                        ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+
+        size_t out_buf_size = ALIGN_UP(PANEL_NATIVE_W * PANEL_NATIVE_H * 2,
+                                       s_cache_line);
+        ppa_srm_oper_config_t op = {
+            .in = {
+                .buffer  = s_landscape_rgb,
+                .pic_w   = src_w,
+                .pic_h   = src_h,
+                .block_w = src_w,
+                .block_h = src_h,
+                .srm_cm  = PPA_SRM_COLOR_MODE_RGB565,
+            },
+            .out = {
+                .buffer      = s_fb[idx],
+                .buffer_size = out_buf_size,
+                .pic_w       = PANEL_NATIVE_W,
+                .pic_h       = PANEL_NATIVE_H,
+                .srm_cm      = PPA_SRM_COLOR_MODE_RGB565,
+            },
+            .rotation_angle = PPA_SRM_ROTATION_ANGLE_270,
+            .scale_x = 1.0f,
+            .scale_y = 1.0f,
+            .mode    = PPA_TRANS_MODE_BLOCKING,
+        };
+        esp_err_t err = ppa_do_scale_rotate_mirror(s_ppa, &op);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "ppa rotate: %s", esp_err_to_name(err));
+            return err;
+        }
+        esp_cache_msync(s_fb[idx], out_buf_size,
+                        ESP_CACHE_MSYNC_FLAG_DIR_M2C |
+                        ESP_CACHE_MSYNC_FLAG_INVALIDATE);
+        err = esp_lcd_panel_draw_bitmap(s_panel, 0, 0,
+                                        PANEL_NATIVE_W, PANEL_NATIVE_H,
+                                        s_fb[idx]);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "panel_draw_bitmap (cpu+ppa): %s",
                      esp_err_to_name(err));
         }
         return err;
