@@ -12,6 +12,7 @@
 #include "freertos/task.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
+#include "lwip/tcp.h"
 
 static const char *TAG = "tcp";
 
@@ -86,6 +87,17 @@ static void accept_task(void *arg)
         char ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &peer.sin_addr, ip, sizeof(ip));
         ESP_LOGI(TAG, "client %s:%u connected", ip, (unsigned)ntohs(peer.sin_port));
+
+        /* Disable Nagle. Our ack-on-decode path emits 30-byte AVMediaAck
+         * packets that gearhead waits on synchronously; without NODELAY
+         * lwIP coalesces them with whatever follows and adds 40-200 ms of
+         * latency. That's enough to trip gearhead's WRITER_STALL detector
+         * and bounce it into FRAMER_WRITER_SYNCHRONOUS_MODE — a one-way
+         * door we then sit behind for ~30-60 s of phone-side keep-alive. */
+        int yes = 1;
+        if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes)) != 0) {
+            ESP_LOGW(TAG, "TCP_NODELAY: errno %d", errno);
+        }
 
         client_loop(sock);
 

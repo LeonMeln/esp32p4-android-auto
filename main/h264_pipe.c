@@ -150,11 +150,15 @@ esp_err_t h264_pipe_init(void)
         s_dec_param = NULL;
     }
 
-    /* Four slots. Empirically the phone bursts several frames between
-     * acks even though we advertise max_unacked=1 in MediaSetupResponse,
-     * so a 1-deep queue overflows constantly. 4 is enough to soak up the
-     * burst at our ~45 ms/frame decode rate without growing memory use. */
-    s_queue = xQueueCreate(4, sizeof(pipe_item_t));
+    /* 16 slots. We never drop frames — every push ends in an ack after
+     * the frame is on screen. The recv-loop blocks on push when full;
+     * if that ever causes a TCP stall, gearhead drops into SYNCHRONOUS_MODE
+     * and slows the whole stream to a keep-alive trickle that takes a
+     * minute to recover. So we size the queue generously enough that the
+     * stall doesn't happen at all on initial channel-start bursts. Each
+     * pipe_item_t holds only a malloc'd byte buffer; 16 × ~100 KiB peak
+     * IDR ≈ 1.6 MB in PSRAM — fine. */
+    s_queue = xQueueCreate(16, sizeof(pipe_item_t));
     if (!s_queue) {
         ESP_LOGE(TAG, "xQueueCreate failed");
         esp_h264_dec_close(s_dec);
@@ -171,7 +175,7 @@ esp_err_t h264_pipe_init(void)
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "decoder ready (async, queue=1)");
+    ESP_LOGI(TAG, "decoder ready (async, queue=16, blocking push)");
     return ESP_OK;
 }
 
@@ -192,16 +196,18 @@ void h264_pipe_push(const uint8_t *data, size_t len,
     }
     memcpy(it.buf, data, len);
 
-    if (xQueueSend(s_queue, &it, 0) != pdTRUE) {
-        /* Decoder is behind by 4+ frames. Dropping is unavoidable — but we
-         * MUST still send the ack, otherwise the phone keeps waiting on its
-         * in-flight frame forever and the stream stalls (observed: 25 s of
-         * silence in earlier run with ack-withheld). Subsequent P-frames
-         * may show artefacts until the next IDR; the periodic VideoFocus
-         * unrequested ping (aa_service.c idr timer) speeds that up. */
-        ESP_LOGW(TAG, "queue full, dropping %u bytes (ack sent anyway)",
-                 (unsigned)len);
+    /* Block until the decoder frees a slot. Never drop. Log if we ended up
+     * waiting more than 50 ms — that's a recv-loop pause long enough for
+     * gearhead to notice (its FRAMER_WRITER_STALL threshold is in the same
+     * order of magnitude). Lets us tell "queue back-pressure caused STALL"
+     * apart from "phone went idle on its own". */
+    int64_t t0 = esp_timer_get_time();
+    if (xQueueSend(s_queue, &it, portMAX_DELAY) != pdTRUE) {
         free(it.buf);
-        if (ack_cb) ack_cb(ack_ctx);
+        return;
+    }
+    int64_t dt_ms = (esp_timer_get_time() - t0) / 1000;
+    if (dt_ms > 50) {
+        ESP_LOGW(TAG, "push blocked %lld ms on full queue", (long long)dt_ms);
     }
 }

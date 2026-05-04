@@ -985,7 +985,9 @@ static esp_err_t handle_av_setup(int sock, aa_tls_t *tls,
     uint8_t resp[12];
     size_t  rp = 0;
     pb_w_uint32(resp, sizeof(resp), &rp, 1, 2 /* MEDIA_STATUS_2 */);
-    pb_w_uint32(resp, sizeof(resp), &rp, 2, 1 /* max_unacked */);
+    pb_w_uint32(resp, sizeof(resp), &rp, 2, 4 /* max_unacked — gearhead
+        bursts past 1 anyway, so advertise headroom that matches our
+        decode queue depth and avoid recv-loop back-pressure stalls. */);
     pb_w_uint32(resp, sizeof(resp), &rp, 3, 0 /* configs[0] = use config 0 */);
     esp_err_t err = send_encrypted(sock, tls, ch, AA_MSG_AV_MEDIA_SETUP_RESP,
                                    resp, rp, cipher_buf, cipher_cap);
