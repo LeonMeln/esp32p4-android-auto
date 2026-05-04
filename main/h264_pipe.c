@@ -150,15 +150,11 @@ esp_err_t h264_pipe_init(void)
         s_dec_param = NULL;
     }
 
-    /* 16 slots. We never drop frames — every push ends in an ack after
-     * the frame is on screen. The recv-loop blocks on push when full;
-     * if that ever causes a TCP stall, gearhead drops into SYNCHRONOUS_MODE
-     * and slows the whole stream to a keep-alive trickle that takes a
-     * minute to recover. So we size the queue generously enough that the
-     * stall doesn't happen at all on initial channel-start bursts. Each
-     * pipe_item_t holds only a malloc'd byte buffer; 16 × ~100 KiB peak
-     * IDR ≈ 1.6 MB in PSRAM — fine. */
-    s_queue = xQueueCreate(16, sizeof(pipe_item_t));
+    /* 32 slots. Earlier 16 was enough on average but bursts during initial
+     * channel setup or movement scenes filled it up and made push block,
+     * which collapses TCP draining and trips gearhead's STALL detector.
+     * 32 × ~100 KiB peak ≈ 3 MB in PSRAM — fine. */
+    s_queue = xQueueCreate(32, sizeof(pipe_item_t));
     if (!s_queue) {
         ESP_LOGE(TAG, "xQueueCreate failed");
         esp_h264_dec_close(s_dec);
@@ -175,7 +171,7 @@ esp_err_t h264_pipe_init(void)
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "decoder ready (async, queue=16, blocking push)");
+    ESP_LOGI(TAG, "decoder ready (async, queue=32, ack-on-display)");
     return ESP_OK;
 }
 
@@ -196,11 +192,8 @@ void h264_pipe_push(const uint8_t *data, size_t len,
     }
     memcpy(it.buf, data, len);
 
-    /* Block until the decoder frees a slot. Never drop. Log if we ended up
-     * waiting more than 50 ms — that's a recv-loop pause long enough for
-     * gearhead to notice (its FRAMER_WRITER_STALL threshold is in the same
-     * order of magnitude). Lets us tell "queue back-pressure caused STALL"
-     * apart from "phone went idle on its own". */
+    /* Block on full queue. Should not happen with depth=32 + max_unacked
+     * gating — log if it does so we can tell. */
     int64_t t0 = esp_timer_get_time();
     if (xQueueSend(s_queue, &it, portMAX_DELAY) != pdTRUE) {
         free(it.buf);

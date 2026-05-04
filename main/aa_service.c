@@ -5,6 +5,7 @@
 
 #include "aa_frame.h"
 #include "aa_proto.h"
+#include "config.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "h264_pipe.h"
@@ -287,24 +288,32 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
         size_t  cdp = build_channel_descriptor(cd, sizeof(cd), 3, 3, scratch, sl);
         pb_w_submsg(out, cap, &pos, 7, cd, cdp);
     }
+#if ENABLE_AUDIO
+#if ENABLE_AUDIO_MEDIA
     sl = build_audio_av_channel(scratch, sizeof(scratch), 3 /* MEDIA */);
     {
         uint8_t cd[128];
         size_t  cdp = build_channel_descriptor(cd, sizeof(cd), 4, 3, scratch, sl);
         pb_w_submsg(out, cap, &pos, 7, cd, cdp);
     }
+#endif
+#if ENABLE_AUDIO_SPEECH
     sl = build_audio_av_channel(scratch, sizeof(scratch), 1 /* SPEECH */);
     {
         uint8_t cd[128];
         size_t  cdp = build_channel_descriptor(cd, sizeof(cd), 5, 3, scratch, sl);
         pb_w_submsg(out, cap, &pos, 7, cd, cdp);
     }
+#endif
+#if ENABLE_AUDIO_SYSTEM
     sl = build_audio_av_channel(scratch, sizeof(scratch), 2 /* SYSTEM */);
     {
         uint8_t cd[128];
         size_t  cdp = build_channel_descriptor(cd, sizeof(cd), 6, 3, scratch, sl);
         pb_w_submsg(out, cap, &pos, 7, cd, cdp);
     }
+#endif
+#endif
 
     /* Legacy car-info strings, shifted up to fields 8-15 to leave 7 for
      * channels. Most will be ignored if the new proto numbers them
@@ -375,6 +384,8 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
         pb_w_submsg(p, cap, &pos, 1, cd, cdp);
     }
 
+#if ENABLE_AUDIO
+#if ENABLE_AUDIO_MEDIA
     /* Media audio (id=4) */
     sl = build_audio_av_channel(scratch, sizeof(scratch), 3 /* MEDIA */);
     {
@@ -382,7 +393,9 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
         size_t cdp = build_channel_descriptor(cd, sizeof(cd), 4, 3, scratch, sl);
         pb_w_submsg(p, cap, &pos, 1, cd, cdp);
     }
+#endif
 
+#if ENABLE_AUDIO_SPEECH
     /* Speech audio (id=5) */
     sl = build_audio_av_channel(scratch, sizeof(scratch), 1 /* SPEECH */);
     {
@@ -390,7 +403,9 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
         size_t cdp = build_channel_descriptor(cd, sizeof(cd), 5, 3, scratch, sl);
         pb_w_submsg(p, cap, &pos, 1, cd, cdp);
     }
+#endif
 
+#if ENABLE_AUDIO_SYSTEM
     /* System audio (id=6) — beeps, system sounds. openauto advertises this
      * via SystemAudioService; without it gearhead may treat the head unit
      * as audio-incomplete and stall before MediaStartIndication. */
@@ -400,6 +415,7 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
         size_t cdp = build_channel_descriptor(cd, sizeof(cd), 6, 3, scratch, sl);
         pb_w_submsg(p, cap, &pos, 1, cd, cdp);
     }
+#endif
 
     /* Microphone — InputStreamChannel sits at field 5 of ChannelDescriptor.
      * Headunit-revived assigns id=7 to MIC; we follow the same numbering so
@@ -410,6 +426,7 @@ static esp_err_t build_sd_response(uint8_t *out, size_t cap, size_t *out_len)
         size_t cdp = build_channel_descriptor(cd, sizeof(cd), 7, 5, scratch, sl);
         pb_w_submsg(p, cap, &pos, 1, cd, cdp);
     }
+#endif
 
     *out_len = pos;
     return ESP_OK;
@@ -824,10 +841,11 @@ static esp_err_t send_av_media_ack(int sock, aa_tls_t *tls,
                           body, bp, cipher_buf, cipher_cap);
 }
 
-/* Cross-task ack path: h264_pipe's decoder_task calls back here after the
- * frame is on screen. We can't share the recv-loop's `cipher` scratch (race
- * with the loop's own send_encrypted calls), so the ack path owns its own
- * tiny cipher buffer. AVMediaAckIndication is < 32 plaintext bytes. */
+/* Cross-task ack path: h264_pipe's decoder_task fires this after the frame
+ * is on screen, so gearhead's max_unacked window paces the phone to our
+ * actual decode rate (~22 fps) instead of free-running and back-pressuring
+ * us into TCP STALL. Owns its own cipher buffer to avoid racing with the
+ * recv-loop's `cipher` scratch. */
 #define AV_ACK_CIPHER_SIZE   128
 
 typedef struct {
@@ -1318,17 +1336,20 @@ esp_err_t aa_service_run(int sock, aa_tls_t *tls)
             } else if ((kind == CH_KIND_AV_VIDEO || kind == CH_KIND_AV_AUDIO) &&
                        (msg_id == AA_MSG_AV_MEDIA_DATA_TS ||
                         msg_id == AA_MSG_AV_MEDIA_DATA)) {
-                /* Hand the NAL bytes off to the async decoder pipe and move
-                 * on. The decoder task fires our ack callback after the
-                 * frame is on screen — that gates the next phone frame via
-                 * max_unacked=1. Critically: this recv path NEVER blocks on
-                 * decode/display, so TCP keeps draining and we don't hit
-                 * FRAMER_WRITER_STALL on the phone side.
+                /* Video: enqueue and let the decoder task fire the ack
+                 * after display. That makes gearhead's max_unacked window
+                 * pace the phone to our actual decode rate (~22 fps) — if
+                 * we ack on receive instead the phone free-runs at 22 fps,
+                 * the queue back-pressures push, and the recv-loop stall
+                 * trips FRAMER_WRITER_STALL on the phone within 20-30 s.
+                 *
+                 * Audio: still ack synchronously here. We don't have an
+                 * audio sink yet, but the phone needs the ack to keep the
+                 * stream open.
                  *
                  * AVMediaWithTimestampIndication has an 8-byte big-endian
                  * timestamp prefix before the H.264 NAL payload — skip it.
-                 * AVMediaIndication (no timestamp) feeds the bytes directly;
-                 * this is typically codec config (SPS/PPS). */
+                 * AVMediaIndication (no timestamp) is typically SPS/PPS. */
                 if (kind == CH_KIND_AV_VIDEO) {
                     video_stats_tick(body_len);
                     const uint8_t *nal = body;
@@ -1342,9 +1363,6 @@ esp_err_t aa_service_run(int sock, aa_tls_t *tls)
                     s_av_ack_ctx.ch   = ch;
                     h264_pipe_push(nal, nal_len, av_ack_callback, &s_av_ack_ctx);
                 } else {
-                    /* Audio path stays synchronous for now — we don't have
-                     * an audio sink yet and the AV ack still has to fire so
-                     * the phone keeps streaming. */
                     err = send_av_media_ack(sock, tls, ch, cipher, CIPHER_BUF_SIZE);
                 }
                 handled = true;

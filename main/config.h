@@ -16,3 +16,28 @@
  * service type used by hostapd-based AA dongles. */
 #define AA_MDNS_SERVICE_TYPE   "_aawireless"
 #define AA_MDNS_PROTO          "_tcp"
+
+/* Audio service advertisement. Gearhead 1.7 on the Nothing A142 hard-rejects
+ * a head unit without audio channels — observed: SD response 168 bytes (no
+ * audio), ~950 ms later recv_decrypted ERR_INVALID_STATE and the client
+ * closes the TCP socket. Has to stay 1 for gearhead to project at all.
+ * Toggling this off only makes sense if we ever find a phone/version pair
+ * that doesn't require audio. */
+#define ENABLE_AUDIO           1
+
+/* Per-stream audio control. Per openauto's ServiceFactory the three audio
+ * AVChannels are independent: System (type 2 — UI beeps) is mandatory,
+ * Speech (type 1 — nav/voice prompts, low-bandwidth 16 kHz mono) and
+ * Media (type 3 — music/podcasts, 48 kHz stereo, the heavy one) can be
+ * dropped individually without breaking projection.
+ *
+ * We don't have an audio sink and the user wants media to play through
+ * the phone's headphones anyway, so drop Media to avoid streaming ~1 MB/min
+ * of audio bytes that compete with the video path on TCP. Phone routes
+ * Media back to its own AudioManager when the channel isn't advertised. */
+#define ENABLE_AUDIO_MEDIA     0  /* 48 kHz stereo music — dropped */
+#define ENABLE_AUDIO_SPEECH    0  /* 16 kHz mono nav prompts / Google Assistant —
+                                     dropped so navigation TTS stays on the phone
+                                     headphones instead of getting ack'd into the
+                                     void on our head unit. */
+#define ENABLE_AUDIO_SYSTEM    1  /* UI beeps — gearhead requires this */
