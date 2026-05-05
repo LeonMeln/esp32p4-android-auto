@@ -182,6 +182,12 @@ esp_err_t display_video_show_yuv420(const uint8_t *yuv,
             s_adapter_paused = false;
             ESP_LOGI(TAG, "VESC mode — resumed LVGL worker, frames dropped");
         }
+        /* AA path naturally yields inside PPA + DPI flush; the drop path
+         * doesn't, and h264_pipe keeps slamming us with frames as fast as
+         * the decoder produces them. Without yielding here, IDLE0 starves
+         * and TWDT fires (observed). One tick is enough — at 100 Hz tick
+         * rate that's 10 ms, well under one source frame interval. */
+        vTaskDelay(1);
         return ESP_OK;
     }
 
