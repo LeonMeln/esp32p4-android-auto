@@ -19,6 +19,10 @@ static lv_obj_t *s_bar;
 static lv_obj_t *s_pct;
 static bool s_initialized;
 
+/* Cache of the last idle text so we can re-apply on AA disconnect. */
+static char s_idle_line1[40];
+static char s_idle_line2[80];
+
 struct _lv_display_t *ota_screen_get_display(void)
 {
     return (struct _lv_display_t *)s_display;
@@ -167,17 +171,39 @@ void ota_screen_hide(void)
 
 void ota_screen_show_idle(const char *line1, const char *line2)
 {
+    snprintf(s_idle_line1, sizeof(s_idle_line1), "%s", line1 ? line1 : "");
+    snprintf(s_idle_line2, sizeof(s_idle_line2), "%s", line2 ? line2 : "");
     if (!s_initialized) {
         return;
     }
     if (bsp_display_lock(200) == ESP_OK) {
-        lv_label_set_text(s_title, line1 ? line1 : "");
-        lv_label_set_text(s_subtitle, line2 ? line2 : "");
+        lv_label_set_text(s_title, s_idle_line1);
+        lv_label_set_text(s_subtitle, s_idle_line2);
         /* Hide OTA-specific widgets (bar/percent/status); keep root visible. */
         lv_obj_add_flag(s_bar,    LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_pct,    LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_status, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(s_root, LV_OBJ_FLAG_HIDDEN);
+        bsp_display_unlock();
+    }
+}
+
+void ota_screen_refresh_idle(void)
+{
+    if (!s_initialized) {
+        return;
+    }
+    if (bsp_display_lock(200) == ESP_OK) {
+        lv_label_set_text(s_title,    s_idle_line1);
+        lv_label_set_text(s_subtitle, s_idle_line2);
+        lv_obj_add_flag(s_bar,    LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_pct,    LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_status, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(s_root, LV_OBJ_FLAG_HIDDEN);
+        /* The video sink wrote the last AA frame straight to the panel
+         * framebuffer; LVGL only redraws dirty regions, so without this
+         * the user would see a frozen frame instead of the idle text. */
+        lv_obj_invalidate(lv_scr_act());
         bsp_display_unlock();
     }
 }

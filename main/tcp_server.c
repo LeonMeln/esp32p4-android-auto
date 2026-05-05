@@ -7,12 +7,17 @@
 #include "aa_handshake.h"
 #include "aa_service.h"
 #include "aa_tls.h"
+#include "bsp/esp-bsp.h"
+#include "display_video.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "lvgl.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 #include "lwip/tcp.h"
+#include "ota_screen.h"
+#include "ui_mode.h"
 
 static const char *TAG = "tcp";
 
@@ -104,6 +109,35 @@ static void accept_task(void *arg)
         shutdown(sock, SHUT_RDWR);
         close(sock);
         ESP_LOGI(TAG, "client closed");
+
+        /* Phone is gone — pry the panel back from the video sink (it had
+         * paused LVGL on the first frame) and put up the idle "Waiting
+         * for phone" text. Skip the screen flip when the user is looking
+         * at the VESC dashboard; the 20 Hz updater is already painting
+         * over the stale video frame for them. */
+        if (ui_mode_get() == UI_MODE_AA) {
+            /* First cycle: apply labels + invalidate while LVGL adapter
+             * is still paused — same order as the working VESC mode-
+             * switch path (queues dirty, processed on resume). */
+            ota_screen_refresh_idle();
+        }
+        display_video_yield_panel();
+
+        /* The panel runs in TRIPLE_PARTIAL tear-avoid mode — three
+         * framebuffers in a ring. A single LVGL render only updates
+         * one; the next two scanouts still flash the stale video frame
+         * baked into the other two buffers. Walk the chain with two
+         * more invalidates (one DPI scanout each) so all three FBs end
+         * up holding the idle screen, no flicker. */
+        if (ui_mode_get() == UI_MODE_AA) {
+            for (int i = 0; i < 2; i++) {
+                vTaskDelay(pdMS_TO_TICKS(35));
+                if (bsp_display_lock(100) == ESP_OK) {
+                    lv_obj_invalidate(lv_scr_act());
+                    bsp_display_unlock();
+                }
+            }
+        }
     }
 }
 
