@@ -18,6 +18,7 @@ idf_component_register(
         "touch_input.c"
         "aa_overclock.c"
         "ui_mode.c"
+        "vesc_ui_updater.c"
     INCLUDE_DIRS "."
     REQUIRES
         nvs_flash
@@ -41,6 +42,7 @@ idf_component_register(
         espressif__esp_h264
         espressif__esp_lvgl_adapter
         vesc_ui
+        vesc_can
 )
 
 # Reroute mbedTLS's UTCTime parser to our offset-tolerant wrapper. Required

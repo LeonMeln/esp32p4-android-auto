@@ -1,0 +1,56 @@
+menu "VESC CAN"
+
+    config VESC_CAN_TX_GPIO
+        int "TWAI TX GPIO"
+        default 20
+        help
+            GPIO connected to TX of the CAN transceiver
+            (e.g. SN65HVD230). Pick a pin not used by the BSP.
+
+    config VESC_CAN_RX_GPIO
+        int "TWAI RX GPIO"
+        default 24
+        help
+            GPIO connected to RX of the CAN transceiver.
+
+    config VESC_CAN_SPEED_KBPS
+        int "CAN baud rate (kbps)"
+        default 500
+        help
+            VESC controllers default to 500 kbps. Allowed values:
+            125, 250, 500, 1000.
+
+    config VESC_CAN_CONTROLLER_ID
+        int "Display CAN ID (this device)"
+        default 2
+        range 1 254
+        help
+            CAN ID announced by the display on the bus. Must be
+            different from any other VESC node. 255 is reserved
+            for broadcast.
+
+    config VESC_CAN_TARGET_ID
+        int "Target VESC ID"
+        default 10
+        range 1 254
+        help
+            CAN ID of the VESC controller polled for RT data.
+
+    config VESC_CAN_RT_INTERVAL_MS
+        int "RT data poll interval (ms)"
+        default 100
+        range 20 1000
+
+    config VESC_CAN_LISP_INTERVAL_MS
+        int "LISP stats poll interval (ms)"
+        default 100
+        range 20 1000
+
+    config VESC_CAN_LISP_POLL_ENABLE
+        bool "Enable LISP stats poll"
+        default n
+        help
+            Polls COMM_LISP_GET_STATS at the configured rate. Only
+            enable if your VESC has a LISP application loaded.
+
+endmenu

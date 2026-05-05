@@ -48,6 +48,10 @@ void port_start_app_hook(void)
 #include "tcp_server.h"
 #include "touch_input.h"
 #include "ui_mode.h"
+#include "vesc_can/comm_can.h"
+#include "vesc_can/vesc_lisp_poll.h"
+#include "vesc_can/vesc_rt_data.h"
+#include "vesc_ui_updater.h"
 #include "wifi_manager.h"
 
 static const char *TAG = "main";
@@ -107,6 +111,17 @@ static void install_lvgl_touch_indev(void)
     }
 }
 
+/* Re-assembled VESC packets land here. Forwards to the RT-data parser
+ * and (if enabled) the LISP poll parser; both filter on the leading
+ * COMM_PACKET_ID byte, so this is just a fan-out. */
+static void vesc_packet_dispatch(const uint8_t *data, unsigned int len)
+{
+    vesc_rt_data_process_response(data, len);
+#if CONFIG_VESC_CAN_LISP_POLL_ENABLE
+    vesc_lisp_poll_process_response(data, len);
+#endif
+}
+
 static void init_nvs(void)
 {
     esp_err_t err = nvs_flash_init();
@@ -156,6 +171,32 @@ void app_main(void)
     if (ui_err == ESP_OK) {
         touch_input_set_gesture_cb(ui_mode_toggle);
         touch_input_start(NULL, NULL);
+    }
+
+    /* VESC CAN bring-up. Independent from the AA pipeline — runs the
+     * second the dashboard is alive so RT data starts streaming even
+     * before WiFi is up. The decode-side handler routes reassembled
+     * VESC packets to vesc_rt_data (and vesc_lisp_poll if enabled). */
+    if (comm_can_start(CONFIG_VESC_CAN_TX_GPIO, CONFIG_VESC_CAN_RX_GPIO,
+                       CONFIG_VESC_CAN_CONTROLLER_ID,
+                       CONFIG_VESC_CAN_SPEED_KBPS) == ESP_OK) {
+        vesc_rt_data_init(CONFIG_VESC_CAN_TARGET_ID,
+                          CONFIG_VESC_CAN_RT_INTERVAL_MS);
+#if CONFIG_VESC_CAN_LISP_POLL_ENABLE
+        vesc_lisp_poll_init(CONFIG_VESC_CAN_TARGET_ID,
+                            CONFIG_VESC_CAN_LISP_INTERVAL_MS);
+#endif
+        comm_can_set_packet_handler(vesc_packet_dispatch);
+        vesc_rt_data_start();
+        vesc_rt_data_start_task();
+#if CONFIG_VESC_CAN_LISP_POLL_ENABLE
+        vesc_lisp_poll_start();
+#endif
+        ESP_LOGI(TAG, "VESC CAN ready, polling target ID %d",
+                 CONFIG_VESC_CAN_TARGET_ID);
+        vesc_ui_updater_start();
+    } else {
+        ESP_LOGW(TAG, "VESC CAN init failed — dashboard will show no data");
     }
 
 #if CONFIG_C6_OTA_ENABLED
