@@ -1,15 +1,41 @@
 #include <stdio.h>
 
 #include "bsp/esp-bsp.h"
+#include "esp_heap_caps.h"
 #include "esp_lv_adapter_input.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_rom_sys.h"
 #include "esp_system.h"
 #include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
 #include "nvs_flash.h"
+
+/* Constructor that runs LATE in do_global_ctors() (priority 65535 = lowest
+ * among priority-tagged, but still before untagged constructors).
+ * Prints free MALLOC_CAP_INTERNAL+8BIT heap to bracket who consumed it. */
+__attribute__((constructor(65535)))
+static void heap_probe_post_priority_ctors(void)
+{
+    size_t internal8 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    esp_rom_printf("HEAP_PROBE A (post-priority-ctors) free=%u largest=%u\n",
+                   (unsigned)internal8, (unsigned)largest);
+}
+
+/* port_start_app_hook is a weak symbol declared in
+ * components/freertos/app_startup.c, called from esp_startup_start_app()
+ * AFTER xTaskCreatePinnedToCore(main_task) but BEFORE vTaskStartScheduler.
+ * That's the last point where we can measure heap before IDLE allocs. */
+void port_start_app_hook(void)
+{
+    size_t internal8 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    esp_rom_printf("HEAP_PROBE B (pre-scheduler) free=%u largest=%u\n",
+                   (unsigned)internal8, (unsigned)largest);
+}
 
 #include "aa_overclock.h"
 #include "bt_link.h"
@@ -94,6 +120,9 @@ static void init_nvs(void)
 void app_main(void)
 {
     ESP_LOGI(TAG, "ESP32-P4 Android Auto boot, mode=%d", CONNECTION_MODE);
+    ESP_LOGI(TAG, "HEAP_PROBE: app_main INTERNAL+8BIT free=%u largest=%u",
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 
     init_nvs();
 

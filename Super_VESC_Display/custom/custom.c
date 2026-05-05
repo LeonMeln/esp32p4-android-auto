@@ -154,7 +154,8 @@ void play_music(lv_ui *ui)
 
 static const void * lv_demo_music_get_list_img(uint32_t track_id)
 {
- 
+    (void)track_id;
+    return NULL;
 }
 
 void music_album_next(bool next)
@@ -248,8 +249,9 @@ void update_battery_proc(float battery_proc)
     lv_meter_set_indicator_value(guider_ui.dashboard_Battery_meter, guider_ui.dashboard_Battery_meter_scale_0_ndline_0, 100-value);
     lv_meter_set_indicator_start_value(guider_ui.dashboard_Battery_meter, guider_ui.dashboard_Battery_meter_scale_0_arc_1, 100-value);
     
+    int v_clamped = value > 99 ? 99 : (value < 0 ? 0 : value);
     char text[10];
-    sprintf(text,"%d", value>99?99:value);
+    snprintf(text, sizeof(text), "%d", v_clamped);
     lv_textarea_set_text(guider_ui.dashboard_Battery_proc_text,text);
 }
 
@@ -773,8 +775,8 @@ static void limits_response_timer_cb(lv_timer_t* timer) {
         
         // Update status
         char buf[128];
-        sprintf(buf, "✅ Limits loaded: Mot %.1fA, Bat %.1fA, ERPM %dk", 
-                limits->l_current_max, limits->l_in_current_max, limits->l_erpm_max / 1000);
+        sprintf(buf, "✅ Limits loaded: Mot %.1fA, Bat %.1fA, ERPM %dk",
+                limits->l_current_max, limits->l_in_current_max, (int)(limits->l_erpm_max / 1000));
         lv_label_set_text(settings_limits_status_label, buf);
         
         // Delete timer
@@ -868,8 +870,8 @@ static void apply_limits_btn_event_cb(lv_event_t *e) {
         // Update status based on result
         if (success) {
             char buf[128];
-            sprintf(buf, "✅ Applied: Mot %.1fA, Bat %.1fA, ERPM %dk", 
-                    motor_current, battery_current, erpm_max_raw);
+            sprintf(buf, "✅ Applied: Mot %.1fA, Bat %.1fA, ERPM %dk",
+                    motor_current, battery_current, (int)erpm_max_raw);
             lv_label_set_text(settings_limits_status_label, buf);
         } else {
             lv_label_set_text(settings_limits_status_label, "❌ Failed to apply limits to VESC");
@@ -877,8 +879,8 @@ static void apply_limits_btn_event_cb(lv_event_t *e) {
 #else
         // Simulator mode - just show confirmation
         char buf[128];
-        sprintf(buf, "✅ Simulator: Values set - Mot %.1fA, Bat %.1fA, ERPM %dk", 
-                motor_current, battery_current, erpm_max_raw);
+        sprintf(buf, "✅ Simulator: Values set - Mot %.1fA, Bat %.1fA, ERPM %dk",
+                motor_current, battery_current, (int)erpm_max_raw);
         lv_label_set_text(settings_limits_status_label, buf);
 #endif
     }

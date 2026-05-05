@@ -22,25 +22,12 @@ CONFIG_SPIRAM_MEMTEST=n
 CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=1024
 CONFIG_USB_HOST_HW_BUFFER_BIAS_BALANCED=y
 
-# LVGL — driven by Kconfig (CONFIG_LV_*). The widgets needed for the GUI
-# Guider VESC dashboard (METER, TILEVIEW, TEXTAREA, SLIDER, IMG, LABEL)
-# plus all Montserrat font sizes used by the GUI Guider .c files.
-CONFIG_LV_CONF_SKIP=y
+# LVGL — using main/lv_conf.h (the file copied from Super_VESC_Display).
+# CONFIG_LV_CONF_SKIP=n tells the LVGL package to '#include "lv_conf.h"'
+# instead of generating one from Kconfig values; the header is found via
+# the global -I${CMAKE_SOURCE_DIR}/main set in the root CMakeLists.txt.
+CONFIG_LV_CONF_SKIP=n
 CONFIG_LV_COLOR_DEPTH_16=y
-CONFIG_LV_USE_METER=y
-CONFIG_LV_USE_TILEVIEW=y
-CONFIG_LV_USE_TEXTAREA=y
-CONFIG_LV_USE_SLIDER=y
-CONFIG_LV_USE_IMG=y
-CONFIG_LV_USE_LABEL=y
-CONFIG_LV_USE_BTN=y
-CONFIG_LV_USE_SPINBOX=y
-CONFIG_LV_USE_DROPDOWN=y
-CONFIG_LV_USE_CHECKBOX=y
-CONFIG_LV_FONT_MONTSERRAT_12=y
-CONFIG_LV_FONT_MONTSERRAT_14=y
-CONFIG_LV_FONT_MONTSERRAT_20=y
-CONFIG_LV_FONT_MONTSERRAT_24=y
 CONFIG_LV_FONT_MONTSERRAT_32=y
 
 # Waveshare BSP — never abort() on init errors. GT911 touch occasionally

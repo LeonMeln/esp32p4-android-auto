@@ -1,17 +1,28 @@
-# GUI Guider VESC dashboard, brought verbatim from
-# <repo>/Super_VESC_Display/{generated,custom}.  Built against LVGL 8.3
-# (matches the original GUI Guider project — no API porting needed).
+# GUI Guider VESC dashboard, sourced **in-place** from
+# <repo>/Super_VESC_Display/{generated,custom}/. There are no copies in
+# this component on purpose — when GUI Guider regenerates the project,
+# the only sync step needed is "rebuild ESP-IDF". Embed-only patches
+# (g_kb_top_layer struct field, ta_event_cb NULL-guard, -Werror fixes,
+# VESC_UI_PROFILE-gated timing markers) live in those Super_VESC_Display
+# files; they are additive and the desktop simulator keeps building.
 #
 # We do NOT define LV_REALDEVICE: that gates out the vesc_limits /
 # vesc_battery_calc backend wiring inside custom.c, and switches
-# settings_wrapper.c to its in-memory SIMULATOR_MODE defaults. Result:
-# the dashboard renders + the Settings menu is interactive, but values
-# are placeholders until the VESC backend is integrated.
+# settings_wrapper.c to its in-memory SIMULATOR_MODE defaults — so the
+# dashboard renders + Settings menu is interactive, but values are
+# placeholders until the VESC backend (vesc_app component) is wired up.
 
-file(GLOB SVD_GENERATED  "generated/*.c")
-file(GLOB SVD_FONTS      "generated/guider_fonts/*.c")
-file(GLOB SVD_IMAGES     "generated/images/*.c")
-file(GLOB SVD_CUSTOM     "custom/*.c")
+set(SVD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Super_VESC_Display")
+
+# Pull every generated/custom .c, then drop _grid_480_800x480.c — that's
+# a 1.15 MB invisible (bg_img_opa=0) background that doesn't fit the
+# factory partition without bloat.
+file(GLOB SVD_GENERATED  "${SVD_ROOT}/generated/*.c")
+list(FILTER SVD_GENERATED EXCLUDE REGEX ".*_grid_480_800x480\\.c$")
+file(GLOB SVD_FONTS      "${SVD_ROOT}/generated/guider_fonts/*.c")
+file(GLOB SVD_IMAGES     "${SVD_ROOT}/generated/images/*.c")
+list(FILTER SVD_IMAGES   EXCLUDE REGEX ".*_grid_480_800x480\\.c$")
+file(GLOB SVD_CUSTOM     "${SVD_ROOT}/custom/*.c")
 
 idf_component_register(
     SRCS
@@ -22,10 +33,12 @@ idf_component_register(
         "vesc_ui.c"
     INCLUDE_DIRS
         "include"
-        "generated"
-        "custom"
+        "${SVD_ROOT}/generated"
+        "${SVD_ROOT}/custom"
     REQUIRES
         lvgl__lvgl
+    PRIV_REQUIRES
+        esp_timer
 )
 
 # Generated images use:
@@ -34,5 +47,18 @@ idf_component_register(
 #   #else
 #   #include "lvgl/lvgl.h"
 #   #endif
-# IDF's lvgl component exposes "lvgl.h", not "lvgl/lvgl.h" — set the flag.
+# IDF's lvgl component exposes "lvgl.h", not "lvgl/lvgl.h".
 target_compile_definitions(${COMPONENT_LIB} PRIVATE LV_LVGL_H_INCLUDE_SIMPLE)
+
+# Per-widget timing markers in setup_scr_dashboard.c (Super_VESC_Display).
+# Off by default; flip to ON to log per-widget cost via ESP_LOGI("svd_prof").
+option(VESC_UI_PROFILE "Profile per-widget LVGL build time" ON)
+if(VESC_UI_PROFILE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE VESC_UI_PROFILE)
+endif()
+
+# The dashboard generated/_grid_480_800x480.c was excluded from the build,
+# but gui_guider.h still has LV_IMG_DECLARE(_grid_480_800x480) and the
+# original setup_scr_dashboard.c sets it as bg_img with opa=0. Provide a
+# tiny stub so the linker is happy — the image is never drawn.
+target_sources(${COMPONENT_LIB} PRIVATE "grid_480_stub.c")
