@@ -110,6 +110,35 @@ CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
 CONFIG_CONSOLE_UART_BAUDRATE=921600
 CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 
+# ===== Bluetooth (NimBLE host on P4, controller on C6 via ESP-Hosted) =====
+# ESP32-P4 has no radio; the C6 slave acts as HCI controller and the
+# NimBLE host runs here on P4 over a virtual HCI transport. Slave fw
+# must be built with CONFIG_ESP_HOSTED_CP_BT=y (already on by default
+# in tools/c6_slave_fw/sdkconfig.defaults.esp32c6).
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_CONTROLLER_DISABLED=y
+# Default NimBLE transport is UART which doesn't apply when the
+# controller lives on the C6 — disable it so ESP-Hosted's VHCI
+# transport is used instead.
+CONFIG_BT_NIMBLE_TRANSPORT_UART=n
+CONFIG_ESP_HOSTED_ENABLE_BT_NIMBLE=y
+CONFIG_ESP_HOSTED_NIMBLE_HCI_VHCI=y
+# NimBLE allocations from PSRAM, not the cramped INTERNAL+8BIT pool.
+# Without this main_task creation crashes with `app_startup.c:86 (res
+# == pdTRUE)` because L2 SRAM no longer has a 16 KiB contiguous chunk
+# after constructors run.
+CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_INTERNAL=n
+CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
+# Same reasoning for ESP-Hosted's own helper tasks (RPC + default
+# task, 2×5 KiB).
+CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM=y
+# We're a peripheral that advertises a GATT server — don't pull in
+# Central / Observer roles.
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_GATT_CLIENT=n
+
 # ===== H.264 SW decoder =====
 # The default ESP_H264_DECODER_IRAM=y stuffs ~22 KiB of decoder hot-path code
 # into IRAM/L2 SRAM, which on this board (after BSP, ESP-Hosted, mbedTLS,
