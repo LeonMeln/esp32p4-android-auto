@@ -61,10 +61,10 @@ esp_err_t ota_screen_init(void)
 
     /* Paint the LVGL active screen black so later widgets land on black,
      * not LVGL's default white. */
-    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(lv_screen_active(), LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(lv_scr_act(), LV_OPA_COVER, 0);
 
-    s_root = lv_obj_create(lv_screen_active());
+    s_root = lv_obj_create(lv_scr_act());
     lv_obj_set_size(s_root, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(s_root, lv_color_hex(0x0a0a0a), 0);
     lv_obj_set_style_pad_all(s_root, 24, 0);

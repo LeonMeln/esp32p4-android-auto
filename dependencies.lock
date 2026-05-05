@@ -336,12 +336,12 @@ dependencies:
       type: idf
     version: 5.5.3
   lvgl/lvgl:
-    component_hash: 17e68bfd21f0edf4c3ee838e2273da840bf3930e5dbc3bfa6c1190c3aed41f9f
+    component_hash: 948bff879a345149b83065535bbc4a026ce9f47498a22881e432a264b9098015
     dependencies: []
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 9.4.0
+    version: 8.3.11
 direct_dependencies:
 - espressif/esp_codec_dev
 - espressif/esp_h264
@@ -354,6 +354,6 @@ direct_dependencies:
 - espressif/mdns
 - idf
 - lvgl/lvgl
-manifest_hash: 05556473bb4affd175dba4ae3d2e24539a46b2e6b756dbae9fe852ad012243f2
+manifest_hash: d506314b2d47e1748cde91f8c79e8b57b2e5d7e0fe2d737f5d21ebfc3bf317ad
 target: esp32p4
 version: 2.0.0

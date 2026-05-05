@@ -1,10 +1,14 @@
 #include <stdio.h>
 
+#include "bsp/esp-bsp.h"
+#include "esp_lv_adapter_input.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_system.h"
+#include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "lvgl.h"
 #include "nvs_flash.h"
 
 #include "aa_overclock.h"
@@ -16,9 +20,66 @@
 #include "mdns_advertise.h"
 #include "ota_screen.h"
 #include "tcp_server.h"
+#include "touch_input.h"
+#include "ui_mode.h"
 #include "wifi_manager.h"
 
 static const char *TAG = "main";
+
+/* ---- Custom LVGL touch indev fed by touch_input.c ----
+ *
+ * BSP auto-installs its own LVGL touch indev that reads GT911 directly. We
+ * unregister it and create our own pointer-typed indev that pulls from
+ * touch_input's shared state, so:
+ *   - touch_input is the single GT911 reader (no I2C race),
+ *   - in TOUCH_MODE_AA the indev sees pressed=false (LVGL stops getting
+ *     events even though polling continues),
+ *   - in TOUCH_MODE_LVGL touches flow into the dashboard normally.
+ *
+ * LVGL 8.3 indev API: lv_indev_drv_init + lv_indev_drv_register
+ * (lv_indev_create / lv_indev_set_* arrived in LVGL 9). */
+static lv_indev_drv_t s_lvgl_touch_drv;
+
+static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
+{
+    (void)drv;
+    bool pressed = false;
+    uint16_t x = 0, y = 0;
+    touch_input_lvgl_read(&x, &y, &pressed);
+    data->state   = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    data->point.x = x;
+    data->point.y = y;
+}
+
+static void install_lvgl_touch_indev(void)
+{
+    /* Drop BSP's auto-installed touch indev (it would race our reader on
+     * the same GT911 over I2C). */
+    lv_indev_t *bsp_indev = bsp_display_get_input_dev();
+    if (bsp_indev) {
+        if (esp_lv_adapter_unregister_touch(bsp_indev) == ESP_OK) {
+            ESP_LOGI(TAG, "BSP touch indev unregistered");
+        } else {
+            ESP_LOGW(TAG, "BSP touch indev unregister failed");
+        }
+    }
+
+    /* lv_indev_drv_register touches LVGL globals — hold the BSP lock. */
+    if (bsp_display_lock(1000) != ESP_OK) {
+        ESP_LOGW(TAG, "lvgl indev: bsp_display_lock failed — skipping");
+        return;
+    }
+    lv_indev_drv_init(&s_lvgl_touch_drv);
+    s_lvgl_touch_drv.type    = LV_INDEV_TYPE_POINTER;
+    s_lvgl_touch_drv.read_cb = lvgl_touch_read_cb;
+    lv_indev_t *indev = lv_indev_drv_register(&s_lvgl_touch_drv);
+    bsp_display_unlock();
+    if (indev) {
+        ESP_LOGI(TAG, "custom LVGL touch indev registered");
+    } else {
+        ESP_LOGW(TAG, "custom LVGL touch indev registration failed");
+    }
+}
 
 static void init_nvs(void)
 {
@@ -42,6 +103,30 @@ void app_main(void)
 
     if (ota_screen_init() != ESP_OK) {
         ESP_LOGW(TAG, "display unavailable — OTA progress will be log-only");
+    }
+
+    /* Replace BSP's auto-installed LVGL touch indev with our own that reads
+     * from touch_input's shared state. Single GT911 reader for both AA and
+     * VESC modes — must run before ui_mode_init so the dashboard sees touch
+     * from frame 1. */
+    install_lvgl_touch_indev();
+
+    /* Build the VESC dashboard offscreen and arm the 3-finger gesture
+     * (works in both AA and VESC modes, even before phone connects).
+     *
+     * super_vesc_ui_init() walks ~1700 lines of GUI Guider widget creation
+     * (~750 lv_obj_set_style_* calls) under the BSP lock on prio-1 main task
+     * → IDLE0 starves for ~5 s and CONFIG_ESP_TASK_WDT_TIMEOUT_S=5 fires.
+     * Detach IDLE0 from TWDT just for this one-shot init. */
+    TaskHandle_t idle0 = xTaskGetIdleTaskHandleForCore(0);
+    bool wdt_paused = (idle0 && esp_task_wdt_delete(idle0) == ESP_OK);
+    esp_err_t ui_err = ui_mode_init();
+    if (wdt_paused) {
+        esp_task_wdt_add(idle0);
+    }
+    if (ui_err == ESP_OK) {
+        touch_input_set_gesture_cb(ui_mode_toggle);
+        touch_input_start(NULL, NULL);
     }
 
 #if CONFIG_C6_OTA_ENABLED

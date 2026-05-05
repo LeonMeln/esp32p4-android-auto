@@ -22,8 +22,25 @@ CONFIG_SPIRAM_MEMTEST=n
 CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=1024
 CONFIG_USB_HOST_HW_BUFFER_BIAS_BALANCED=y
 
-# LVGL
+# LVGL — driven by Kconfig (CONFIG_LV_*). The widgets needed for the GUI
+# Guider VESC dashboard (METER, TILEVIEW, TEXTAREA, SLIDER, IMG, LABEL)
+# plus all Montserrat font sizes used by the GUI Guider .c files.
+CONFIG_LV_CONF_SKIP=y
 CONFIG_LV_COLOR_DEPTH_16=y
+CONFIG_LV_USE_METER=y
+CONFIG_LV_USE_TILEVIEW=y
+CONFIG_LV_USE_TEXTAREA=y
+CONFIG_LV_USE_SLIDER=y
+CONFIG_LV_USE_IMG=y
+CONFIG_LV_USE_LABEL=y
+CONFIG_LV_USE_BTN=y
+CONFIG_LV_USE_SPINBOX=y
+CONFIG_LV_USE_DROPDOWN=y
+CONFIG_LV_USE_CHECKBOX=y
+CONFIG_LV_FONT_MONTSERRAT_12=y
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+CONFIG_LV_FONT_MONTSERRAT_24=y
 CONFIG_LV_FONT_MONTSERRAT_32=y
 
 # Waveshare BSP — never abort() on init errors. GT911 touch occasionally
@@ -88,11 +105,11 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
 
 # ===== Android Auto head unit =====
-# Default role STA: head unit joins an existing network (bench setup).
-# Creds come from main/bench_wifi.h (gitignored) when present, otherwise from
-# CONFIG_AA_WIFI_SSID/CONFIG_AA_WIFI_PASSWORD set via menuconfig.
-# Switch to CONFIG_AA_WIFI_ROLE_AP=y for SoftAP production behaviour.
-CONFIG_AA_WIFI_ROLE_STA=y
+# Default role AP: head unit runs SoftAP, phone joins it (production —
+# matches a real wireless head unit). Switch to CONFIG_AA_WIFI_ROLE_STA=y
+# for bench testing on an existing network (creds in main/bench_wifi.h
+# when present, otherwise CONFIG_AA_WIFI_SSID/PASSWORD via menuconfig).
+CONFIG_AA_WIFI_ROLE_AP=y
 
 # ===== C6 slave OTA on boot (firmware embedded in host bin) =====
 CONFIG_C6_OTA_ENABLED=y
