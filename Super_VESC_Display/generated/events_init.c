@@ -31,9 +31,24 @@ static void dashboard_event_handler (lv_event_t *e)
     }
 }
 
+static void dashboard_Settings_text_event_handler (lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        ui_load_scr_animation(&guider_ui, &guider_ui.settings, guider_ui.settings_del, &guider_ui.dashboard_del, setup_scr_settings, LV_SCR_LOAD_ANIM_FADE_ON, 200, 200, false, false);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 void events_init_dashboard (lv_ui *ui)
 {
     lv_obj_add_event_cb(ui->dashboard, dashboard_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->dashboard_Settings_text, dashboard_Settings_text_event_handler, LV_EVENT_ALL, ui);
 }
 
 static void settings_event_handler (lv_event_t *e)

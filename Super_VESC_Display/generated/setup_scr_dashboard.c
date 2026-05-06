@@ -3448,6 +3448,45 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Speed_cc_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_Speed_cc_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    //Write codes dashboard_Settings_text
+    ui->dashboard_Settings_text = lv_textarea_create(ui->dashboard);
+    /* cockpit-patch: hide cursor + lock input */
+    lv_obj_set_style_opa(ui->dashboard_Settings_text, LV_OPA_TRANSP, LV_PART_CURSOR);
+    lv_obj_clear_flag(ui->dashboard_Settings_text, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_textarea_set_text(ui->dashboard_Settings_text, "SETTINGS");
+    lv_textarea_set_placeholder_text(ui->dashboard_Settings_text, "");
+    lv_textarea_set_password_bullet(ui->dashboard_Settings_text, "*");
+    lv_textarea_set_password_mode(ui->dashboard_Settings_text, false);
+    lv_textarea_set_one_line(ui->dashboard_Settings_text, true);
+    lv_textarea_set_accepted_chars(ui->dashboard_Settings_text, "");
+    lv_textarea_set_max_length(ui->dashboard_Settings_text, 64);
+#if LV_USE_KEYBOARD != 0 || LV_USE_ZH_KEYBOARD != 0
+    lv_obj_add_event_cb(ui->dashboard_Settings_text, ta_event_cb, LV_EVENT_ALL, ui->g_kb_top_layer);
+#endif
+    lv_obj_set_pos(ui->dashboard_Settings_text, 616, 10);
+    lv_obj_set_size(ui->dashboard_Settings_text, 96, 30);
+    lv_obj_add_flag(ui->dashboard_Settings_text, LV_OBJ_FLAG_CLICKABLE);
+
+    //Write style for dashboard_Settings_text, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    lv_obj_set_style_text_color(ui->dashboard_Settings_text, lv_color_hex(0xB6FF2E), LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui->dashboard_Settings_text, &lv_font_montserratMedium_16, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui->dashboard_Settings_text, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_letter_space(ui->dashboard_Settings_text, 2, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui->dashboard_Settings_text, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui->dashboard_Settings_text, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(ui->dashboard_Settings_text, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(ui->dashboard_Settings_text, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui->dashboard_Settings_text, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui->dashboard_Settings_text, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui->dashboard_Settings_text, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui->dashboard_Settings_text, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+
+    //Write style for dashboard_Settings_text, Part: LV_PART_SCROLLBAR, State: LV_STATE_DEFAULT.
+    lv_obj_set_style_bg_opa(ui->dashboard_Settings_text, 255, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui->dashboard_Settings_text, lv_color_hex(0x2195f6), LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_dir(ui->dashboard_Settings_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui->dashboard_Settings_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
+
     //The custom code of dashboard.
 
 
