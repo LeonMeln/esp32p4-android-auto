@@ -241,11 +241,12 @@ void custom_init(lv_ui *ui)
     //     lv_meter_set_indicator_value(ui->dashboard_Speed_meter, ui->dashboard_Speed_meter_scale_2_ndline_0, -1);
     // }
 
-#ifndef LV_REALDEVICE
+#if !defined(LV_REALDEVICE) && defined(VESC_UI_DEMO)
     /* Simulator: feed live-looking VESC data through the same update_*
      * setters the firmware uses, so the Cockpit reacts identically to a
      * real run. On hardware (LV_REALDEVICE) data comes from CAN/UART and
-     * the demo is not compiled. */
+     * the demo is not compiled. Off by default on-device — VESC_UI_DEMO=1
+     * to re-enable for bench validation when there's no controller wired. */
     extern void cockpit_demo_tick(lv_timer_t * t);
     lv_timer_create(cockpit_demo_tick, 250 /* ms */, NULL);
 #endif
@@ -403,7 +404,8 @@ void update_speed(float speed)
 
     /* Cockpit: zero-padded 2-digit format (32, 05) and horizontal bar fill. */
     char text[10];
-    sprintf(text, "%02d", value < 0 ? 0 : value);
+    int v_clamped = value < 0 ? 0 : (value > 999 ? 999 : value);
+    snprintf(text, sizeof(text), "%02d", v_clamped);
     lv_textarea_set_text(guider_ui.dashboard_Speed_text, text);
     cockpit_paint_speed_bar(value, 60);
 }

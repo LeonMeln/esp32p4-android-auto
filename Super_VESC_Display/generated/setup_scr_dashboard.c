@@ -13,11 +13,38 @@
 #include "events_init.h"
 #include "widgets_init.h"
 #include "custom.h"
+#include "esp_log.h"
+#include "esp_timer.h"
 
-
+extern volatile int64_t  svd_acc_create_us;
+extern volatile uint32_t svd_cnt_create;
+extern volatile int64_t  svd_acc_style_us;
+extern volatile uint32_t svd_cnt_style;
+extern volatile int64_t  svd_acc_pos_us;
+extern volatile uint32_t svd_cnt_pos;
+extern volatile int64_t  svd_acc_size_us;
+extern volatile uint32_t svd_cnt_size;
+extern volatile int64_t  svd_acc_label_text_us;
+extern volatile uint32_t svd_cnt_label_text;
+extern volatile int64_t  svd_acc_ta_text_us;
+extern volatile uint32_t svd_cnt_ta_text;
+extern volatile int64_t  svd_acc_update_layout_us;
+extern volatile uint32_t svd_cnt_update_layout;
+extern volatile uint32_t svd_txt_get_size_calls;
+extern volatile int64_t  svd_txt_get_size_us;
 
 void setup_scr_dashboard(lv_ui *ui)
 {
+    int64_t __svd_setup_t0 = esp_timer_get_time();
+    int64_t __svd_create0   = svd_acc_create_us;       uint32_t __svd_create_n0   = svd_cnt_create;
+    int64_t __svd_style0    = svd_acc_style_us;        uint32_t __svd_style_n0    = svd_cnt_style;
+    int64_t __svd_pos0      = svd_acc_pos_us;          uint32_t __svd_pos_n0      = svd_cnt_pos;
+    int64_t __svd_size0     = svd_acc_size_us;         uint32_t __svd_size_n0     = svd_cnt_size;
+    int64_t __svd_lbl0      = svd_acc_label_text_us;   uint32_t __svd_lbl_n0      = svd_cnt_label_text;
+    int64_t __svd_ta0       = svd_acc_ta_text_us;      uint32_t __svd_ta_n0       = svd_cnt_ta_text;
+    int64_t __svd_layout0   = svd_acc_update_layout_us;uint32_t __svd_layout_n0   = svd_cnt_update_layout;
+    uint32_t __svd_gs_n0    = svd_txt_get_size_calls;  int64_t __svd_gs0          = svd_txt_get_size_us;
+
     //Write codes dashboard
     ui->dashboard = lv_obj_create(NULL);
     lv_obj_set_size(ui->dashboard, 800, 480);
@@ -111,7 +138,7 @@ void setup_scr_dashboard(lv_ui *ui)
     /* cockpit-patch: hide cursor + lock input */
     lv_obj_set_style_opa(ui->dashboard_mode_text, LV_OPA_TRANSP, LV_PART_CURSOR);
     lv_obj_clear_flag(ui->dashboard_mode_text, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-    lv_textarea_set_text(ui->dashboard_mode_text, "MODE 1");
+    lv_textarea_set_text(ui->dashboard_mode_text, "");
     lv_textarea_set_placeholder_text(ui->dashboard_mode_text, "");
     lv_textarea_set_password_bullet(ui->dashboard_mode_text, "*");
     lv_textarea_set_password_mode(ui->dashboard_mode_text, false);
@@ -3221,6 +3248,7 @@ void setup_scr_dashboard(lv_ui *ui)
 #endif
     lv_obj_set_pos(ui->dashboard_col_avg_label, 640, 414);
     lv_obj_set_size(ui->dashboard_col_avg_label, 160, 12);
+    lv_obj_add_flag(ui->dashboard_col_avg_label, LV_OBJ_FLAG_HIDDEN);
 
     //Write style for dashboard_col_avg_label, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
     lv_obj_set_style_text_color(ui->dashboard_col_avg_label, lv_color_hex(0x8A9499), LV_PART_MAIN|LV_STATE_DEFAULT);
@@ -3259,6 +3287,7 @@ void setup_scr_dashboard(lv_ui *ui)
 #endif
     lv_obj_set_pos(ui->dashboard_col_avg_value, 640, 432);
     lv_obj_set_size(ui->dashboard_col_avg_value, 100, 60);
+    lv_obj_add_flag(ui->dashboard_col_avg_value, LV_OBJ_FLAG_HIDDEN);
 
     //Write style for dashboard_col_avg_value, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
     lv_obj_set_style_text_color(ui->dashboard_col_avg_value, lv_color_hex(0xE8EDEE), LV_PART_MAIN|LV_STATE_DEFAULT);
@@ -3297,6 +3326,7 @@ void setup_scr_dashboard(lv_ui *ui)
 #endif
     lv_obj_set_pos(ui->dashboard_col_avg_unit, 744, 442);
     lv_obj_set_size(ui->dashboard_col_avg_unit, 56, 14);
+    lv_obj_add_flag(ui->dashboard_col_avg_unit, LV_OBJ_FLAG_HIDDEN);
 
     //Write style for dashboard_col_avg_unit, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
     lv_obj_set_style_text_color(ui->dashboard_col_avg_unit, lv_color_hex(0x8A9499), LV_PART_MAIN|LV_STATE_DEFAULT);
@@ -3495,4 +3525,43 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Init events for screen.
     events_init_dashboard(ui);
+
+    {
+        int64_t __dt_total  = esp_timer_get_time() - __svd_setup_t0;
+        int64_t __dt_create = svd_acc_create_us       - __svd_create0;
+        int64_t __dt_style  = svd_acc_style_us        - __svd_style0;
+        int64_t __dt_pos    = svd_acc_pos_us          - __svd_pos0;
+        int64_t __dt_size   = svd_acc_size_us         - __svd_size0;
+        int64_t __dt_lbl    = svd_acc_label_text_us   - __svd_lbl0;
+        int64_t __dt_ta     = svd_acc_ta_text_us      - __svd_ta0;
+        int64_t __dt_layout = svd_acc_update_layout_us- __svd_layout0;
+        int64_t __dt_gs     = svd_txt_get_size_us     - __svd_gs0;
+
+        uint32_t __n_create = svd_cnt_create       - __svd_create_n0;
+        uint32_t __n_style  = svd_cnt_style        - __svd_style_n0;
+        uint32_t __n_pos    = svd_cnt_pos          - __svd_pos_n0;
+        uint32_t __n_size   = svd_cnt_size         - __svd_size_n0;
+        uint32_t __n_lbl    = svd_cnt_label_text   - __svd_lbl_n0;
+        uint32_t __n_ta     = svd_cnt_ta_text      - __svd_ta_n0;
+        uint32_t __n_layout = svd_cnt_update_layout- __svd_layout_n0;
+        uint32_t __n_gs     = svd_txt_get_size_calls - __svd_gs_n0;
+
+        int64_t __sum = __dt_create + __dt_style + __dt_pos + __dt_size +
+                        __dt_lbl + __dt_ta + __dt_layout;
+        int64_t __other = __dt_total - __sum;
+
+        ESP_LOGI("svd_prof", "===== setup_scr_dashboard breakdown =====");
+        ESP_LOGI("svd_prof", "  TOTAL                   %6lld ms", __dt_total / 1000);
+        ESP_LOGI("svd_prof", "  obj_create              %6lld ms  (%4u calls)", __dt_create / 1000, (unsigned)__n_create);
+        ESP_LOGI("svd_prof", "  set_local_style_prop    %6lld ms  (%4u calls)", __dt_style  / 1000, (unsigned)__n_style);
+        ESP_LOGI("svd_prof", "  set_pos                 %6lld ms  (%4u calls)", __dt_pos    / 1000, (unsigned)__n_pos);
+        ESP_LOGI("svd_prof", "  set_size                %6lld ms  (%4u calls)", __dt_size   / 1000, (unsigned)__n_size);
+        ESP_LOGI("svd_prof", "  label_set_text          %6lld ms  (%4u calls)", __dt_lbl    / 1000, (unsigned)__n_lbl);
+        ESP_LOGI("svd_prof", "  textarea_set_text       %6lld ms  (%4u calls)", __dt_ta     / 1000, (unsigned)__n_ta);
+        ESP_LOGI("svd_prof", "  update_layout           %6lld ms  (%4u calls)", __dt_layout / 1000, (unsigned)__n_layout);
+        ESP_LOGI("svd_prof", "  --- of which ---");
+        ESP_LOGI("svd_prof", "  txt_get_size            %6lld ms  (%4u calls)  [counted inside above]",
+                 __dt_gs / 1000, (unsigned)__n_gs);
+        ESP_LOGI("svd_prof", "  OTHER (everything else) %6lld ms", __other / 1000);
+    }
 }
