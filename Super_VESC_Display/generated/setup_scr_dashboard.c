@@ -16,8 +16,27 @@
 
 
 
+
+#ifdef VESC_UI_PROFILE
+#include "esp_log.h"
+#include "esp_timer.h"
+#define SVD_PROF_BEGIN() \
+    int64_t __svd_prev = esp_timer_get_time(); \
+    const char *__svd_name = "dashboard"
+#define SVD_PROF_MARK(name) do { \
+    int64_t __now = esp_timer_get_time(); \
+    ESP_LOGI("svd_prof", "%-32s %5lld ms", __svd_name, (__now - __svd_prev) / 1000); \
+    __svd_prev = __now; \
+    __svd_name = (name); \
+} while (0)
+#else
+#define SVD_PROF_BEGIN() (void)0
+#define SVD_PROF_MARK(name) (void)0
+#endif
+
 void setup_scr_dashboard(lv_ui *ui)
 {
+    SVD_PROF_BEGIN();
     //Write codes dashboard
     ui->dashboard = lv_obj_create(NULL);
     lv_obj_set_size(ui->dashboard, 800, 480);
@@ -30,6 +49,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_img_src(ui->dashboard, &_grid_480_800x480, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_bg_img_opa(ui->dashboard, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_tileview_1");
     //Write codes dashboard_tileview_1
     ui->dashboard_tileview_1 = lv_tileview_create(ui->dashboard);
     ui->dashboard_tileview_1_tile = lv_tileview_add_tile(ui->dashboard_tileview_1, 0, 0, LV_DIR_BOTTOM);
@@ -50,6 +70,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
 
 
+    SVD_PROF_MARK("dashboard_Battery_meter");
     //Write codes dashboard_Battery_meter
     ui->dashboard_Battery_meter = lv_meter_create(ui->dashboard_tileview_1_tile);
     // add scale ui->dashboard_Battery_meter_scale_0
@@ -93,6 +114,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_color(ui->dashboard_Battery_meter, lv_color_hex(0x2a3440), LV_PART_INDICATOR|LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Battery_meter, LV_GRAD_DIR_NONE, LV_PART_INDICATOR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_reset_trip_img");
     //Write codes dashboard_reset_trip_img
     ui->dashboard_reset_trip_img = lv_img_create(ui->dashboard_tileview_1_tile);
     lv_obj_add_flag(ui->dashboard_reset_trip_img, LV_OBJ_FLAG_CLICKABLE);
@@ -108,6 +130,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_reset_trip_img, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_clip_corner(ui->dashboard_reset_trip_img, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_img_3");
     //Write codes dashboard_img_3
     ui->dashboard_img_3 = lv_img_create(ui->dashboard_tileview_1_tile);
     lv_obj_add_flag(ui->dashboard_img_3, LV_OBJ_FLAG_CLICKABLE);
@@ -123,6 +146,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_img_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_clip_corner(ui->dashboard_img_3, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Current_meter");
     //Write codes dashboard_Current_meter
     ui->dashboard_Current_meter = lv_meter_create(ui->dashboard_tileview_1_tile);
     // add scale ui->dashboard_Current_meter_scale_0
@@ -171,6 +195,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_color(ui->dashboard_Current_meter, lv_color_hex(0x2a3440), LV_PART_INDICATOR|LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Current_meter, LV_GRAD_DIR_NONE, LV_PART_INDICATOR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Speed_meter");
     //Write codes dashboard_Speed_meter
     ui->dashboard_Speed_meter = lv_meter_create(ui->dashboard_tileview_1_tile);
     // add scale ui->dashboard_Speed_meter_scale_0
@@ -231,6 +256,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_color(ui->dashboard_Speed_meter, lv_color_hex(0x2a3440), LV_PART_INDICATOR|LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Speed_meter, LV_GRAD_DIR_NONE, LV_PART_INDICATOR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_img_1");
     //Write codes dashboard_img_1
     ui->dashboard_img_1 = lv_img_create(ui->dashboard_tileview_1_tile);
     lv_obj_add_flag(ui->dashboard_img_1, LV_OBJ_FLAG_CLICKABLE);
@@ -246,6 +272,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_img_1, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_clip_corner(ui->dashboard_img_1, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Speed_text");
     //Write codes dashboard_Speed_text
     ui->dashboard_Speed_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_Speed_text, "38");
@@ -284,6 +311,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Speed_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_Speed_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_odo_text");
     //Write codes dashboard_odo_text
     ui->dashboard_odo_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_odo_text, "019018");
@@ -319,6 +347,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_odo_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_odo_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_1");
     //Write codes dashboard_ta_1
     ui->dashboard_ta_1 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_1, "km");
@@ -354,6 +383,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_1, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_1, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_2");
     //Write codes dashboard_ta_2
     ui->dashboard_ta_2 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_2, "km/h");
@@ -389,6 +419,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_2, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_2, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Battery_proc_text");
     //Write codes dashboard_Battery_proc_text
     ui->dashboard_Battery_proc_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_Battery_proc_text, "38");
@@ -427,6 +458,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Battery_proc_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_Battery_proc_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_4");
     //Write codes dashboard_ta_4
     ui->dashboard_ta_4 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_4, "TRIP");
@@ -462,6 +494,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_4, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_4, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_TRIP_text");
     //Write codes dashboard_TRIP_text
     ui->dashboard_TRIP_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_TRIP_text, "180");
@@ -500,6 +533,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_TRIP_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_TRIP_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_5");
     //Write codes dashboard_ta_5
     ui->dashboard_ta_5 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_5, "km");
@@ -535,6 +569,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_5, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_5, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Voltage_text");
     //Write codes dashboard_Voltage_text
     ui->dashboard_Voltage_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_Voltage_text, "54.2");
@@ -573,6 +608,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Voltage_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_Voltage_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_6");
     //Write codes dashboard_ta_6
     ui->dashboard_ta_6 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_6, "VOLTAGE");
@@ -608,6 +644,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_6, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_6, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_7");
     //Write codes dashboard_ta_7
     ui->dashboard_ta_7 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_7, "%");
@@ -643,6 +680,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_7, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_7, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_8");
     //Write codes dashboard_ta_8
     ui->dashboard_ta_8 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_8, "V");
@@ -678,6 +716,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_8, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_8, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_9");
     //Write codes dashboard_ta_9
     ui->dashboard_ta_9 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_9, "CURRENT");
@@ -713,6 +752,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_9, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_9, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_10");
     //Write codes dashboard_ta_10
     ui->dashboard_ta_10 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_10, "A");
@@ -748,6 +788,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_10, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_10, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Current_text");
     //Write codes dashboard_Current_text
     ui->dashboard_Current_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_Current_text, "54.2");
@@ -786,6 +827,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Current_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_Current_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_14");
     //Write codes dashboard_ta_14
     ui->dashboard_ta_14 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_14, "km");
@@ -821,6 +863,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_14, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_14, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Range_text");
     //Write codes dashboard_Range_text
     ui->dashboard_Range_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_Range_text, "180");
@@ -859,6 +902,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Range_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_Range_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_12");
     //Write codes dashboard_ta_12
     ui->dashboard_ta_12 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_12, "RANGE");
@@ -894,6 +938,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_12, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_12, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Ah_text");
     //Write codes dashboard_Ah_text
     ui->dashboard_Ah_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_Ah_text, "54.2");
@@ -932,6 +977,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Ah_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_Ah_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_Ah_const_text");
     //Write codes dashboard_Ah_const_text
     ui->dashboard_Ah_const_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_Ah_const_text, "Ah");
@@ -967,6 +1013,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_Ah_const_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_Ah_const_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_17");
     //Write codes dashboard_ta_17
     ui->dashboard_ta_17 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_17, "t.MOT");
@@ -1002,6 +1049,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_17, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_17, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_18");
     //Write codes dashboard_ta_18
     ui->dashboard_ta_18 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_18, "t.ESC");
@@ -1037,6 +1085,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_18, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_18, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_20");
     //Write codes dashboard_ta_20
     ui->dashboard_ta_20 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_20, "C");
@@ -1072,6 +1121,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_20, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_20, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_temp_mot_text");
     //Write codes dashboard_temp_mot_text
     ui->dashboard_temp_mot_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_temp_mot_text, "18");
@@ -1110,6 +1160,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_temp_mot_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_temp_mot_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_temp_esc_text");
     //Write codes dashboard_temp_esc_text
     ui->dashboard_temp_esc_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_temp_esc_text, "18");
@@ -1148,6 +1199,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_temp_esc_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_temp_esc_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_22");
     //Write codes dashboard_ta_22
     ui->dashboard_ta_22 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_22, "C");
@@ -1183,6 +1235,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_22, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_22, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_23");
     //Write codes dashboard_ta_23
     ui->dashboard_ta_23 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_23, "C");
@@ -1219,6 +1272,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_23, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_23, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_temp_bat_text");
     //Write codes dashboard_temp_bat_text
     ui->dashboard_temp_bat_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_temp_bat_text, "18");
@@ -1258,6 +1312,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_temp_bat_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_temp_bat_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_25");
     //Write codes dashboard_ta_25
     ui->dashboard_ta_25 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_25, "t.BAT");
@@ -1294,6 +1349,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_25, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_25, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ta_26");
     //Write codes dashboard_ta_26
     ui->dashboard_ta_26 = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_ta_26, "54.2");
@@ -1333,6 +1389,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_ta_26, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_ta_26, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_uptime_text");
     //Write codes dashboard_uptime_text
     ui->dashboard_uptime_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_uptime_text, "12:34:56");
@@ -1371,6 +1428,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_uptime_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_uptime_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_ble_connected_img");
     //Write codes dashboard_ble_connected_img
     ui->dashboard_ble_connected_img = lv_img_create(ui->dashboard_tileview_1_tile);
     lv_obj_add_flag(ui->dashboard_ble_connected_img, LV_OBJ_FLAG_CLICKABLE);
@@ -1386,6 +1444,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_ble_connected_img, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_clip_corner(ui->dashboard_ble_connected_img, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_esc_not_connected_text");
     //Write codes dashboard_esc_not_connected_text
     ui->dashboard_esc_not_connected_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_esc_not_connected_text, "ESC NOT CONNECTED");
@@ -1422,6 +1481,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_esc_not_connected_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_esc_not_connected_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_cruise_control_img");
     //Write codes dashboard_cruise_control_img
     ui->dashboard_cruise_control_img = lv_img_create(ui->dashboard_tileview_1_tile);
     lv_obj_add_flag(ui->dashboard_cruise_control_img, LV_OBJ_FLAG_CLICKABLE);
@@ -1437,6 +1497,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_cruise_control_img, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_clip_corner(ui->dashboard_cruise_control_img, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_mode_text");
     //Write codes dashboard_mode_text
     ui->dashboard_mode_text = lv_textarea_create(ui->dashboard_tileview_1_tile);
     lv_textarea_set_text(ui->dashboard_mode_text, "");
@@ -1472,6 +1533,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_mode_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_mode_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_slider_1");
     //Write codes dashboard_slider_1
     ui->dashboard_slider_1 = lv_slider_create(ui->dashboard);
     lv_slider_set_range(ui->dashboard_slider_1, -60, 60);
@@ -1501,6 +1563,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_slider_1, LV_GRAD_DIR_NONE, LV_PART_KNOB|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_slider_1, 8, LV_PART_KNOB|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_slider_2");
     //Write codes dashboard_slider_2
     ui->dashboard_slider_2 = lv_slider_create(ui->dashboard);
     lv_slider_set_range(ui->dashboard_slider_2, 0, 60);
@@ -1530,6 +1593,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_slider_2, LV_GRAD_DIR_NONE, LV_PART_KNOB|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_slider_2, 8, LV_PART_KNOB|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_slider_3");
     //Write codes dashboard_slider_3
     ui->dashboard_slider_3 = lv_slider_create(ui->dashboard);
     lv_slider_set_range(ui->dashboard_slider_3, 0, 100);
@@ -1559,6 +1623,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_slider_3, LV_GRAD_DIR_NONE, LV_PART_KNOB|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_slider_3, 8, LV_PART_KNOB|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_fps_text");
     //Write codes dashboard_fps_text
     ui->dashboard_fps_text = lv_textarea_create(ui->dashboard);
     lv_textarea_set_text(ui->dashboard_fps_text, "FPS");
@@ -1594,6 +1659,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_fps_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_fps_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_settings_button");
     //Write codes dashboard_settings_button
     ui->dashboard_settings_button = lv_img_create(ui->dashboard);
     lv_obj_add_flag(ui->dashboard_settings_button, LV_OBJ_FLAG_CLICKABLE);
@@ -1609,6 +1675,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_settings_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_clip_corner(ui->dashboard_settings_button, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_navigation_icon");
     //Write codes dashboard_navigation_icon
     ui->dashboard_navigation_icon = lv_img_create(ui->dashboard);
     lv_obj_add_flag(ui->dashboard_navigation_icon, LV_OBJ_FLAG_CLICKABLE);
@@ -1624,6 +1691,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_navigation_icon, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_clip_corner(ui->dashboard_navigation_icon, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_navigation_text");
     //Write codes dashboard_navigation_text
     ui->dashboard_navigation_text = lv_textarea_create(ui->dashboard);
     lv_textarea_set_text(ui->dashboard_navigation_text, "Navigation Off");
@@ -1660,6 +1728,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_navigation_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_navigation_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_music_text");
     //Write codes dashboard_music_text
     ui->dashboard_music_text = lv_textarea_create(ui->dashboard);
     lv_textarea_set_text(ui->dashboard_music_text, "Music Off");
@@ -1695,6 +1764,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_bg_grad_dir(ui->dashboard_music_text, LV_GRAD_DIR_NONE, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui->dashboard_music_text, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_img_4");
     //Write codes dashboard_img_4
     ui->dashboard_img_4 = lv_img_create(ui->dashboard);
     lv_obj_add_flag(ui->dashboard_img_4, LV_OBJ_FLAG_CLICKABLE);
@@ -1710,6 +1780,7 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_img_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_clip_corner(ui->dashboard_img_4, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
+    SVD_PROF_MARK("dashboard_symbols");
     //Write codes dashboard_symbols
     ui->dashboard_symbols = lv_textarea_create(ui->dashboard);
     lv_textarea_set_text(ui->dashboard_symbols, "АаБбВвГгДдЕеЁёЖжЗзИиЙйКкЛлМмНнОоПпРрСсТтУуФфХхЦцЧчШшЩщЪъЫыЬьЭэЮюЯяAaĄąBbCcĆćDdEeĘęFfGgHhIiJjKkLlŁłMmNnŃńOoÓóPpRrSsŚśTtUuWwYyZzŹźŻż  ­\n’");
@@ -1758,4 +1829,5 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Init events for screen.
     events_init_dashboard(ui);
+    SVD_PROF_MARK("done");
 }
