@@ -3,6 +3,7 @@ idf_component_register(
         "buffer.c"
         "crc.c"
         "comm_can.c"
+        "packet_parser.c"
         "vesc_rt_data.c"
         "vesc_lisp_poll.c"
     INCLUDE_DIRS

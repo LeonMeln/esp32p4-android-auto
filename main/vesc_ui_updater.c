@@ -1,5 +1,6 @@
 #include "vesc_ui_updater.h"
 
+#include "ble_host.h"
 #include "bsp/esp-bsp.h"
 #include "esp_log.h"
 #include "lvgl.h"
@@ -62,6 +63,19 @@ static void push_rt_locked(void)
 static void updater_lv_timer_cb(lv_timer_t *t)
 {
     (void)t;
+    /* BT icon reflects the real NimBLE host state regardless of demo —
+     * cockpit_demo_tick no longer touches it, so no writer conflict.
+     * update_ble_status dedups internally. */
+    update_ble_status(ble_host_is_connected());
+
+    /* Demo mode (Settings → Demo mode) drives the rest of the setters
+     * from cockpit_demo_tick. Skip the RT pump so it doesn't overwrite
+     * demo values with zeros every 100 ms. When demo turns off, force
+     * zeros once so stale demo numbers don't linger. */
+    if (dashboard_demo_is_active()) {
+        s_zeros_pushed = false;
+        return;
+    }
     if (!s_zeros_pushed) {
         push_zeros_locked();
         s_zeros_pushed = true;

@@ -38,9 +38,12 @@ void port_start_app_hook(void)
 }
 
 #include "aa_overclock.h"
+#include "ble_host.h"
+#include "ble_nus.h"
 #include "bt_link.h"
 #include "c6_ota.h"
 #include "config.h"
+#include "dev_settings.h"
 #include "display_init.h"
 #include "display_video.h"
 #include "h264_pipe.h"
@@ -113,15 +116,18 @@ static void install_lvgl_touch_indev(void)
     }
 }
 
-/* Re-assembled VESC packets land here. Forwards to the RT-data parser
- * and (if enabled) the LISP poll parser; both filter on the leading
- * COMM_PACKET_ID byte, so this is just a fan-out. */
+/* Re-assembled VESC packets land here. Forwards to the RT-data parser,
+ * (if enabled) the LISP poll parser, and the BLE NUS bridge so VESC Tool
+ * over BLE sees CAN responses. All three filter / gate on their own state
+ * (RT/LISP on the leading COMM_PACKET_ID byte, NUS on connection state)
+ * so the fan-out is unconditional. */
 static void vesc_packet_dispatch(const uint8_t *data, unsigned int len)
 {
     vesc_rt_data_process_response(data, len);
 #if CONFIG_VESC_CAN_LISP_POLL_ENABLE
     vesc_lisp_poll_process_response(data, len);
 #endif
+    ble_nus_forward_response(data, (uint16_t)len);
 }
 
 static void init_nvs(void)
@@ -134,6 +140,43 @@ static void init_nvs(void)
     ESP_ERROR_CHECK(err);
 }
 
+/* settings_set_can_speed → here. Re-arms the TWAI driver with the new
+ * baud rate, keeping the current controller_id from settings. */
+static void on_can_speed_changed(int new_kbps)
+{
+    if (comm_can_reinit(settings_get_controller_id(), new_kbps) != ESP_OK) {
+        ESP_LOGW(TAG, "comm_can_reinit(%d kbps) failed", new_kbps);
+    }
+}
+
+/* settings_set_screen_brightness → here. bsp_display_brightness_set is
+ * a thin LEDC duty wrapper, safe to call from the UI task. */
+static void on_brightness_changed(uint8_t pct)
+{
+    bsp_display_brightness_set(pct);
+}
+
+/* settings_set_controller_id → here. Reinit TWAI so STATUS_* frames go
+ * out under the new ID. Speed comes back from settings (single source). */
+static void on_controller_id_changed(uint8_t new_id)
+{
+    if (comm_can_reinit(new_id, (int)settings_get_can_speed()) != ESP_OK) {
+        ESP_LOGW(TAG, "comm_can_reinit(ctrl=%u) failed", new_id);
+    }
+}
+
+/* settings_set_target_vesc_id → here. Both pollers store the target ID
+ * statically; vesc_*_init is documented as safe to call repeatedly so
+ * we just re-init them and the next poll cycle hits the new node. */
+static void on_target_id_changed(uint8_t new_id)
+{
+    vesc_rt_data_init(new_id, CONFIG_VESC_CAN_RT_INTERVAL_MS);
+#if CONFIG_VESC_CAN_LISP_POLL_ENABLE
+    vesc_lisp_poll_init(new_id, CONFIG_VESC_CAN_LISP_INTERVAL_MS);
+#endif
+    ESP_LOGI(TAG, "VESC target ID → %u", new_id);
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "ESP32-P4 Android Auto boot, mode=%d", CONNECTION_MODE);
@@ -142,6 +185,10 @@ void app_main(void)
              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 
     init_nvs();
+    /* Settings cache is now ready for both the UI (settings_ui_init pulls
+     * via settings_wrapper_init → settings_init) and our callback wiring
+     * below. settings_init is idempotent. */
+    settings_init();
 
     /* Bump CPU to 400 MHz before any peripheral / WiFi init so APB ratio
      * stays consistent. No-op unless CONFIG_AA_OVERCLOCK_400 is set. */
@@ -150,6 +197,11 @@ void app_main(void)
     if (display_init() != ESP_OK) {
         ESP_LOGW(TAG, "display init failed — UI disabled");
     }
+    /* display_init lights the backlight at 100% — apply the saved brightness
+     * once the panel is up so user preference takes hold before any UI
+     * draws. Brightness callback persists future changes from the slider. */
+    bsp_display_brightness_set(settings_get_screen_brightness());
+    settings_register_brightness_cb(on_brightness_changed);
     /* idle first, ota second so the OTA overlay sits on top in z-order
      * (children of lv_scr_act() are stacked in creation order). */
     idle_screen_init();
@@ -183,14 +235,14 @@ void app_main(void)
      * second the dashboard is alive so RT data starts streaming even
      * before WiFi is up. The decode-side handler routes reassembled
      * VESC packets to vesc_rt_data (and vesc_lisp_poll if enabled). */
+    int     can_kbps = (int)settings_get_can_speed();
+    uint8_t ctrl_id  = settings_get_controller_id();
+    uint8_t tgt_id   = settings_get_target_vesc_id();
     if (comm_can_start(CONFIG_VESC_CAN_TX_GPIO, CONFIG_VESC_CAN_RX_GPIO,
-                       CONFIG_VESC_CAN_CONTROLLER_ID,
-                       CONFIG_VESC_CAN_SPEED_KBPS) == ESP_OK) {
-        vesc_rt_data_init(CONFIG_VESC_CAN_TARGET_ID,
-                          CONFIG_VESC_CAN_RT_INTERVAL_MS);
+                       ctrl_id, can_kbps) == ESP_OK) {
+        vesc_rt_data_init(tgt_id, CONFIG_VESC_CAN_RT_INTERVAL_MS);
 #if CONFIG_VESC_CAN_LISP_POLL_ENABLE
-        vesc_lisp_poll_init(CONFIG_VESC_CAN_TARGET_ID,
-                            CONFIG_VESC_CAN_LISP_INTERVAL_MS);
+        vesc_lisp_poll_init(tgt_id, CONFIG_VESC_CAN_LISP_INTERVAL_MS);
 #endif
         comm_can_set_packet_handler(vesc_packet_dispatch);
         vesc_rt_data_start();
@@ -198,9 +250,15 @@ void app_main(void)
 #if CONFIG_VESC_CAN_LISP_POLL_ENABLE
         vesc_lisp_poll_start();
 #endif
-        ESP_LOGI(TAG, "VESC CAN ready, polling target ID %d",
-                 CONFIG_VESC_CAN_TARGET_ID);
+        ESP_LOGI(TAG, "VESC CAN ready, polling target ID %u (own ID %u)",
+                 tgt_id, ctrl_id);
         vesc_ui_updater_start();
+        /* Hook the setters that drive the CAN bus to live reconfig.
+         * Registered after the driver is up so callbacks can never run
+         * before the first comm_can_start. */
+        settings_register_can_speed_cb(on_can_speed_changed);
+        settings_register_controller_id_cb(on_controller_id_changed);
+        settings_register_target_id_cb(on_target_id_changed);
     } else {
         ESP_LOGW(TAG, "VESC CAN init failed — dashboard will show no data");
     }
@@ -217,6 +275,13 @@ void app_main(void)
     /* If OTA showed itself, drop it now that we're past the update phase. */
     ota_screen_hide();
 #endif
+
+    /* NimBLE host on top of C6's BT controller (ESP-Hosted VHCI). Starts
+     * advertising NUS so VESC Tool can connect over BLE and talk to the
+     * VESC controller via the CAN bridge in vesc_packet_dispatch. */
+    if (ble_host_init() != ESP_OK) {
+        ESP_LOGW(TAG, "BLE host init failed — VESC Tool over BLE unavailable");
+    }
 
     idle_screen_show("Android Auto", "Initialising Wi-Fi...");
 

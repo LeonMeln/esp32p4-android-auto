@@ -1,0 +1,66 @@
+#pragma once
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Numeric values match the kbps payload — settings_wrapper.c maps them
+ * to/from a 0..3 dropdown index. */
+typedef enum {
+    CAN_SPEED_125_KBPS  = 125,
+    CAN_SPEED_250_KBPS  = 250,
+    CAN_SPEED_500_KBPS  = 500,
+    CAN_SPEED_1000_KBPS = 1000,
+} can_speed_t;
+
+typedef enum {
+    BATTERY_CALC_MODE_DIRECT = 0,
+    BATTERY_CALC_MODE_SMART  = 1,
+} battery_calc_mode_t;
+
+/* Loads cache from NVS. Idempotent — settings_ui_init() also calls this
+ * via settings_wrapper_init(), so order between main and UI doesn't matter. */
+void settings_init(void);
+
+uint8_t              settings_get_target_vesc_id(void);
+can_speed_t          settings_get_can_speed(void);
+uint8_t              settings_get_screen_brightness(void);
+uint8_t              settings_get_controller_id(void);
+float                settings_get_battery_capacity(void);
+battery_calc_mode_t  settings_get_battery_calc_mode(void);
+bool                 settings_get_show_fps(void);
+uint16_t             settings_get_wheel_diameter_mm(void);
+uint8_t              settings_get_motor_poles(void);
+
+void settings_set_target_vesc_id(uint8_t id);
+void settings_set_can_speed(can_speed_t speed);
+void settings_set_screen_brightness(uint8_t brightness);
+void settings_set_controller_id(uint8_t id);
+void settings_set_battery_capacity(float capacity);
+void settings_set_battery_calc_mode(battery_calc_mode_t mode);
+void settings_set_show_fps(bool show);
+void settings_set_wheel_diameter_mm(uint16_t diameter_mm);
+void settings_set_motor_poles(uint8_t poles);
+
+/* Hot-apply hooks: registered by main once the corresponding subsystem is
+ * up. settings_set_* fires the callback synchronously on the caller after
+ * persisting (UI thread for set-from-UI). NULL allowed.
+ *
+ * Wired today: CAN speed, screen brightness, target VESC ID, controller ID.
+ * Other setters just persist to NVS and are picked up on next boot. */
+typedef void (*settings_can_speed_cb_t)(int new_kbps);
+typedef void (*settings_brightness_cb_t)(uint8_t new_pct);
+typedef void (*settings_target_id_cb_t)(uint8_t new_id);
+typedef void (*settings_controller_id_cb_t)(uint8_t new_id);
+
+void settings_register_can_speed_cb(settings_can_speed_cb_t cb);
+void settings_register_brightness_cb(settings_brightness_cb_t cb);
+void settings_register_target_id_cb(settings_target_id_cb_t cb);
+void settings_register_controller_id_cb(settings_controller_id_cb_t cb);
+
+#ifdef __cplusplus
+}
+#endif

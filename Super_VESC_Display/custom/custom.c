@@ -63,6 +63,8 @@ static lv_obj_t *settings_battery_calc_mode_dropdown = NULL;
 static lv_obj_t *settings_battery_calc_mode_label = NULL;
 static lv_obj_t *settings_show_fps_switch = NULL;
 static lv_obj_t *settings_show_fps_label = NULL;
+static lv_obj_t *settings_demo_mode_switch = NULL;
+static lv_obj_t *settings_demo_mode_label = NULL;
 static lv_obj_t *settings_wheel_diameter_spinbox = NULL;
 static lv_obj_t *settings_wheel_diameter_label = NULL;
 static lv_obj_t *settings_wheel_diameter_plus_btn = NULL;
@@ -223,6 +225,16 @@ void custom_init(lv_ui *ui)
 
     // BLE status is shown via dashboard_status_bt text — the
     // ble_connected_img icon has been removed from the project.
+    // Setup_scr_dashboard paints "BT" in bright accent by default;
+    // dim it on init since no peer is connected yet. update_ble_status()
+    // will repaint when a peer joins (its internal old_state == false
+    // dedup matches the inactive look we set here).
+    if (ui->dashboard_status_bt) {
+        lv_obj_set_style_text_color(ui->dashboard_status_bt,
+                                    lv_color_hex(0x4A5358), LV_PART_MAIN);
+        lv_obj_set_style_text_opa(ui->dashboard_status_bt,
+                                  LV_OPA_50, LV_PART_MAIN);
+    }
 
     // Initialize ESC not connected text as hidden (will be shown and blink if ESC disconnects)
     if (ui->dashboard_esc_not_connected_text != NULL) {
@@ -244,21 +256,14 @@ void custom_init(lv_ui *ui)
     //     lv_meter_set_indicator_value(ui->dashboard_Speed_meter, ui->dashboard_Speed_meter_scale_2_ndline_0, -1);
     // }
 
-#if !defined(LV_REALDEVICE) && defined(VESC_UI_DEMO)
-    /* Simulator: feed live-looking VESC data through the same update_*
-     * setters the firmware uses, so the Cockpit reacts identically to a
-     * real run. On hardware (LV_REALDEVICE) data comes from CAN/UART and
-     * the demo is not compiled. Off by default on-device — VESC_UI_DEMO=1
-     * to re-enable for bench validation when there's no controller wired. */
-    extern void cockpit_demo_tick(lv_timer_t * t);
-    lv_timer_create(cockpit_demo_tick, 250 /* ms */, NULL);
-#endif
+    /* Demo loop is no longer auto-started. It is toggled at runtime from
+     * the Settings screen via dashboard_demo_set_active() — see the
+     * "Demo mode" switch wired up in settings_ui_init(). */
 }
 
-#ifndef LV_REALDEVICE
 /* 4 Hz tick (~250 ms). sinf() drives smooth value sweeps; every change goes
  * through update_speed() and friends, the same path used on real hardware. */
-void cockpit_demo_tick(lv_timer_t * t)
+static void cockpit_demo_tick(lv_timer_t * t)
 {
     (void)t;
     static uint32_t tick = 0;
@@ -306,8 +311,10 @@ void cockpit_demo_tick(lv_timer_t * t)
     /* Mode flips every ~30 s. */
     update_mode_text((tick / 120) % 3);
 
-    /* BLE toggles every ~10 s to exercise status_bt. */
-    update_ble_status((tick / 40) % 2);
+    /* BLE status is intentionally NOT touched here. vesc_ui_updater pushes
+     * the real ble_host_is_connected() at 10 Hz outside the demo gate, so
+     * if we toggled it from the demo the icon would flicker between the
+     * fake value and the real one. The icon stays truthful in demo. */
 
     /* ESC link: 20 s connected, 5 s disconnected (25 s cycle). When
      * disconnected, esc_not_connected_text appears and (per existing logic)
@@ -322,7 +329,21 @@ void cockpit_demo_tick(lv_timer_t * t)
         update_cruise_speed(45.0f + sinf(ts * 0.3f) * 5.0f);
     }
 }
-#endif
+
+static lv_timer_t *s_demo_timer = NULL;
+
+bool dashboard_demo_is_active(void) {
+    return s_demo_timer != NULL;
+}
+
+void dashboard_demo_set_active(bool on) {
+    if (on && !s_demo_timer) {
+        s_demo_timer = lv_timer_create(cockpit_demo_tick, 250, NULL);
+    } else if (!on && s_demo_timer) {
+        lv_timer_del(s_demo_timer);
+        s_demo_timer = NULL;
+    }
+}
 
 void speed_meter_timer_cb(lv_timer_t * t)
 {
@@ -1063,6 +1084,9 @@ static void erpm_max_minus_btn_event_cb(lv_event_t *e) {
     }
 }
 
+/* Show FPS switch removed from the Settings UI — fps_text widget is no
+ * longer rendered anywhere on the dashboard. Keeping the handler around
+ * would just be dead code.
 // Event handler for Show FPS switch
 static void show_fps_switch_event_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
@@ -1070,16 +1094,17 @@ static void show_fps_switch_event_cb(lv_event_t *e) {
         lv_obj_t *obj = lv_event_get_target(e);
         bool checked = lv_obj_has_state(obj, LV_STATE_CHECKED);
         settings_wrapper_set_show_fps(checked);
-        
-        /* Cockpit: fps_text removed — the settings toggle still persists
-         * its value, but the widget is no longer shown anywhere. */
-        // if (guider_ui.dashboard_fps_text) {
-        //     if (checked) {
-        //         lv_obj_clear_flag(guider_ui.dashboard_fps_text, LV_OBJ_FLAG_HIDDEN);
-        //     } else {
-        //         lv_obj_add_flag(guider_ui.dashboard_fps_text, LV_OBJ_FLAG_HIDDEN);
-        //     }
-        // }
+    }
+}
+*/
+
+// Event handler for Demo mode switch
+static void demo_mode_switch_event_cb(lv_event_t *e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_VALUE_CHANGED) {
+        lv_obj_t *obj = lv_event_get_target(e);
+        bool checked = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        dashboard_demo_set_active(checked);
     }
 }
 
@@ -1633,30 +1658,51 @@ void settings_ui_init(lv_ui *ui) {
     y_pos += spacing;
     */
     
+    /*
     // ========== Show FPS Switch ==========
     bool show_fps = settings_wrapper_get_show_fps();
-    
+
     settings_show_fps_label = lv_label_create(ui->settings);
     lv_label_set_text(settings_show_fps_label, "Show FPS Counter");
     lv_obj_set_pos(settings_show_fps_label, 20, y_pos);
     lv_obj_set_style_text_color(settings_show_fps_label, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_text_font(settings_show_fps_label, &lv_font_montserrat_24, 0);
-    
+
     settings_show_fps_switch = lv_switch_create(ui->settings);
     lv_obj_set_pos(settings_show_fps_switch, 380, y_pos - 5);
     lv_obj_set_size(settings_show_fps_switch, 60, 30);
-    
+
     // Set switch state based on current setting
     if (show_fps) {
         lv_obj_add_state(settings_show_fps_switch, LV_STATE_CHECKED);
     }
-    
+
     // Style the switch
     lv_obj_set_style_bg_color(settings_show_fps_switch, lv_color_hex(0x2a3440), LV_PART_MAIN);
     lv_obj_set_style_bg_color(settings_show_fps_switch, lv_color_hex(0x00a9ff), LV_PART_INDICATOR | LV_STATE_CHECKED);
-    
+
     lv_obj_add_event_cb(settings_show_fps_switch, show_fps_switch_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    
+
+    y_pos += spacing;
+    */
+
+    // ========== Demo Mode Switch ==========
+    settings_demo_mode_label = lv_label_create(ui->settings);
+    lv_label_set_text(settings_demo_mode_label, "Demo mode");
+    lv_obj_set_pos(settings_demo_mode_label, 20, y_pos);
+    lv_obj_set_style_text_color(settings_demo_mode_label, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(settings_demo_mode_label, &lv_font_montserrat_24, 0);
+
+    settings_demo_mode_switch = lv_switch_create(ui->settings);
+    lv_obj_set_pos(settings_demo_mode_switch, 380, y_pos - 5);
+    lv_obj_set_size(settings_demo_mode_switch, 60, 30);
+    if (dashboard_demo_is_active()) {
+        lv_obj_add_state(settings_demo_mode_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_set_style_bg_color(settings_demo_mode_switch, lv_color_hex(0x2a3440), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(settings_demo_mode_switch, lv_color_hex(0x00a9ff), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_add_event_cb(settings_demo_mode_switch, demo_mode_switch_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
     y_pos += spacing;
     /*
     // ========== Wheel Diameter Spinbox ==========

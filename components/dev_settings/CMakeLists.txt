@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS
+        "dev_settings.c"
+        "vesc_stubs.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        nvs_flash
+)

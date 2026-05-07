@@ -14,6 +14,8 @@ idf_component_register(
         "aa_proto.c"
         "aa_service.c"
         "aa_x509_patch.c"
+        "ble_host.c"
+        "ble_nus.c"
         "bt_link.c"
         "h264_pipe.c"
         "display_video.c"
@@ -30,6 +32,7 @@ idf_component_register(
         esp_hw_support
         hal
         esp_hosted
+        bt
         esp_timer
         esp_ringbuf
         esp_lcd
@@ -45,6 +48,7 @@ idf_component_register(
         espressif__esp_lvgl_adapter
         vesc_ui
         vesc_can
+        dev_settings
 )
 
 # Reroute mbedTLS's UTCTime parser to our offset-tolerant wrapper. Required

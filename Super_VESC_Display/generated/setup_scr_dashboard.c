@@ -2080,7 +2080,7 @@ void setup_scr_dashboard(lv_ui *ui)
     ui->dashboard_esc_not_connected_text = lv_label_create(ui->dashboard);
     lv_label_set_text(ui->dashboard_esc_not_connected_text, "ESC NOT CONNECTED");
     lv_label_set_long_mode(ui->dashboard_esc_not_connected_text, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->dashboard_esc_not_connected_text, 250, 5);
+    lv_obj_set_pos(ui->dashboard_esc_not_connected_text, 280, 5);
     lv_obj_set_size(ui->dashboard_esc_not_connected_text, 240, 32);
     lv_obj_add_flag(ui->dashboard_esc_not_connected_text, LV_OBJ_FLAG_HIDDEN);
 

@@ -602,7 +602,7 @@
 					"name": "esc_not_connected_text",
 					"id": "z2rs7qcf",
 					"type": "label",
-					"left": 250,
+					"left": 280,
 					"top": 5,
 					"visible": true,
 					"isLock": 0,
@@ -9171,7 +9171,8 @@
 					"bg_img_recolor": "#000000",
 					"bg_img_recolor_opa": 0
 				}
-			]
+			],
+			"layerName": "dashboard"
 		},
 		{
 			"name": "settings",
@@ -9437,7 +9438,8 @@
 					"bg_img_recolor": "#ffffff",
 					"bg_img_recolor_opa": 0
 				}
-			]
+			],
+			"layerName": "settings"
 		}
 	],
 	"Application": {
@@ -18217,7 +18219,7 @@
 							"LV_OBJ_FLAG_HIDDEN"
 						],
 						"pos": [
-							250,
+							280,
 							5
 						],
 						"size": [
@@ -19360,7 +19362,7 @@
 														"name": "esc_not_connected_text",
 														"id": "z2rs7qcf",
 														"type": "label",
-														"left": 250,
+														"left": 280,
 														"top": 5,
 														"visible": true,
 														"isLock": 0,

@@ -6,11 +6,10 @@
 # VESC_UI_PROFILE-gated timing markers) live in those Super_VESC_Display
 # files; they are additive and the desktop simulator keeps building.
 #
-# We do NOT define LV_REALDEVICE: that gates out the vesc_limits /
-# vesc_battery_calc backend wiring inside custom.c, and switches
-# settings_wrapper.c to its in-memory SIMULATOR_MODE defaults — so the
-# dashboard renders + Settings menu is interactive, but values are
-# placeholders until the VESC backend (vesc_app component) is wired up.
+# LV_REALDEVICE is set below (post-register). It switches settings_wrapper.c
+# off SIMULATOR_MODE onto the NVS-backed dev_settings, and enables the
+# vesc_limits / vesc_battery_calc include sites in custom.c. Both backends
+# are stubbed in components/dev_settings until vesc_app lands.
 
 set(SVD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Super_VESC_Display")
 
@@ -39,7 +38,14 @@ idf_component_register(
         lvgl__lvgl
     PRIV_REQUIRES
         esp_timer
+        dev_settings
 )
+
+# LV_REALDEVICE flips settings_wrapper.c from in-RAM SIMULATOR_MODE to the
+# real NVS-backed dev_settings backend, and turns on the vesc_limits /
+# vesc_battery_calc include sites in custom.c. Stubs in components/dev_settings
+# keep the build linkable until the vesc_app backend lands.
+target_compile_definitions(${COMPONENT_LIB} PRIVATE LV_REALDEVICE)
 
 # Generated images use:
 #   #if defined(LV_LVGL_H_INCLUDE_SIMPLE)

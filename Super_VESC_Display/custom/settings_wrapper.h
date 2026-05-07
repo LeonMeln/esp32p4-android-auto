@@ -14,6 +14,12 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef LV_REALDEVICE
+/* On-device build pulls battery_calc_mode_t from the authoritative store;
+ * otherwise the simulator-only enum below stands in. */
+#include "dev_settings.h"
+#endif
+
 // CAN Speed options
 typedef enum {
     CAN_SPEED_125 = 0,
@@ -22,11 +28,13 @@ typedef enum {
     CAN_SPEED_1000 = 3
 } can_speed_option_t;
 
-// Battery calculation mode options
+#ifndef LV_REALDEVICE
+// Simulator-only fallback. Device build uses the dev_settings enum.
 typedef enum {
     BATTERY_CALC_MODE_DIRECT = 0,    // Direct from controller
-    BATTERY_CALC_MODE_SMART = 1      // Smart calculation
+    BATTERY_CALC_MODE_SMART  = 1     // Smart calculation
 } battery_calc_mode_option_t;
+#endif
 
 // Wrapper functions for simulator compatibility
 void settings_wrapper_init(void);

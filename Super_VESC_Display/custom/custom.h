@@ -41,6 +41,13 @@ void update_cruise_speed(float speed);
 void update_mode_text(uint8_t mode);
 void reset_icon_pressed(void);
 
+/* Runtime demo loop: pumps sin-wave values through the same update_*
+ * setters at 4 Hz. Toggled from the in-app Settings screen. The RT
+ * updater (main/vesc_ui_updater.c) checks dashboard_demo_is_active()
+ * and stays out of the way while demo is on. */
+bool dashboard_demo_is_active(void);
+void dashboard_demo_set_active(bool on);
+
 #ifdef __cplusplus
 }
 #endif
