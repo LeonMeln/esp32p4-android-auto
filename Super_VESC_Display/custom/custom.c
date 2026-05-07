@@ -192,7 +192,7 @@ static void cockpit_update_power(void)
     if (guider_ui.dashboard_power_value) {
         char text[16];
         snprintf(text, sizeof(text), "%.1f", power_kw);
-        lv_textarea_set_text(guider_ui.dashboard_power_value, text);
+        lv_label_set_text(guider_ui.dashboard_power_value, text);
         /* Match the digit colour to the bar — cyan during regen. */
         lv_obj_set_style_text_color(
             guider_ui.dashboard_power_value,
@@ -217,7 +217,10 @@ static void set_position_y(void * gui, int32_t temp)
 void custom_init(lv_ui *ui)
 {
     /* Add your codes here */
-    
+
+    /* Disable screen panning — dashboard is a static layout. */
+    lv_obj_clear_flag(ui->dashboard, LV_OBJ_FLAG_SCROLLABLE);
+
     // BLE status is shown via dashboard_status_bt text — the
     // ble_connected_img icon has been removed from the project.
 
@@ -381,7 +384,7 @@ void update_current(float current)
     (void)value;
     char text[10];
     sprintf(text,"%.1f A", current);
-    lv_textarea_set_text(guider_ui.dashboard_Current_text,text);
+    lv_label_set_text(guider_ui.dashboard_Current_text,text);
 
     /* Cockpit: recompute power using cached voltage. */
     s_cockpit_last_current_a = current;
@@ -406,7 +409,7 @@ void update_speed(float speed)
     char text[10];
     int v_clamped = value < 0 ? 0 : (value > 999 ? 999 : value);
     snprintf(text, sizeof(text), "%02d", v_clamped);
-    lv_textarea_set_text(guider_ui.dashboard_Speed_text, text);
+    lv_label_set_text(guider_ui.dashboard_Speed_text, text);
     cockpit_paint_speed_bar(value, 60);
 }
 
@@ -431,7 +434,7 @@ void update_cruise_speed(float speed)
     if (guider_ui.dashboard_Speed_cc_text) {
         char text[8];
         snprintf(text, sizeof(text), "%d", value);
-        lv_textarea_set_text(guider_ui.dashboard_Speed_cc_text, text);
+        lv_label_set_text(guider_ui.dashboard_Speed_cc_text, text);
     }
 }
 
@@ -453,7 +456,7 @@ void update_battery_proc(float battery_proc)
     int v_clamped = value > 99 ? 99 : (value < 0 ? 0 : value);
     char text[10];
     snprintf(text, sizeof(text), "%d", v_clamped);
-    lv_textarea_set_text(guider_ui.dashboard_Battery_proc_text,text);
+    lv_label_set_text(guider_ui.dashboard_Battery_proc_text,text);
 
     /* Cockpit: digit color + vertical bar fill per the 50/20 rule. */
     lv_color_t bcol = cockpit_battery_color(v_clamped);
@@ -471,7 +474,7 @@ void update_trip(float trip_distance)
     
     char text[10];
     sprintf(text,"%0.1f", trip_distance);
-    lv_textarea_set_text(guider_ui.dashboard_TRIP_text,text);
+    lv_label_set_text(guider_ui.dashboard_TRIP_text,text);
 }
 
 void update_range(float range_distance)
@@ -484,7 +487,7 @@ void update_range(float range_distance)
     
     char text[10];
     sprintf(text,"%.1f", range_distance);
-    lv_textarea_set_text(guider_ui.dashboard_Range_text,text);
+    lv_label_set_text(guider_ui.dashboard_Range_text,text);
 }
 
 void update_temp_fet(float temp_fet)
@@ -498,7 +501,7 @@ void update_temp_fet(float temp_fet)
     int value = temp_fet;
     char text[10];
     sprintf(text,"%d", value);
-    lv_textarea_set_text(guider_ui.dashboard_temp_esc_text,text);
+    lv_label_set_text(guider_ui.dashboard_temp_esc_text,text);
 }
 
 void update_temp_motor(float temp_motor)
@@ -512,7 +515,7 @@ void update_temp_motor(float temp_motor)
     int value = temp_motor;
     char text[10];
     sprintf(text,"%d", value);
-    lv_textarea_set_text(guider_ui.dashboard_temp_mot_text,text);
+    lv_label_set_text(guider_ui.dashboard_temp_mot_text,text);
 }
 
 void update_amp_hours(float amp_hours)
@@ -525,7 +528,7 @@ void update_amp_hours(float amp_hours)
     
     char text[16];
     sprintf(text, "%.1f Ah", amp_hours);
-    lv_textarea_set_text(guider_ui.dashboard_Ah_text, text);
+    lv_label_set_text(guider_ui.dashboard_Ah_text, text);
 }
 
 void update_battery_temp(float battery_temp)
@@ -541,7 +544,7 @@ void update_battery_temp(float battery_temp)
     (void)value;
     // char text[10];
     // sprintf(text,"%d", value);
-    // lv_textarea_set_text(guider_ui.dashboard_temp_bat_text, text);
+    // lv_label_set_text(guider_ui.dashboard_temp_bat_text, text);
 }
 
 void update_battery_voltage(float battery_voltage)
@@ -555,7 +558,7 @@ void update_battery_voltage(float battery_voltage)
     char text[10];
     sprintf(text,"%.1f V", battery_voltage);
 
-    lv_textarea_set_text(guider_ui.dashboard_Voltage_text,text);
+    lv_label_set_text(guider_ui.dashboard_Voltage_text,text);
 
     /* Cockpit: recompute power using cached current. */
     s_cockpit_last_voltage_v = battery_voltage;
@@ -575,7 +578,7 @@ void update_odometer(float odometer)
     char text[10];
     sprintf(text,"%05d", value);
 
-    lv_textarea_set_text(guider_ui.dashboard_odo_text,text);
+    lv_label_set_text(guider_ui.dashboard_odo_text,text);
 }
 
 void update_fps(int fps)
@@ -595,7 +598,7 @@ void update_uptime(uint32_t uptime)
     
     char text[20];
     sprintf(text,"%02d:%02d:%02d", value/3600, (value%3600)/60, value%60);
-    lv_textarea_set_text(guider_ui.dashboard_uptime_text,text);
+    lv_label_set_text(guider_ui.dashboard_uptime_text,text);
 }
 
 void update_mode_text(uint8_t mode)
@@ -608,7 +611,7 @@ void update_mode_text(uint8_t mode)
     
     char text[20];
     sprintf(text,"MODE %d", mode+1);
-    lv_textarea_set_text(guider_ui.dashboard_mode_text,text);
+    lv_label_set_text(guider_ui.dashboard_mode_text,text);
 }
 
 void update_ble_status(bool connected)
