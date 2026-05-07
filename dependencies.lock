@@ -37,6 +37,37 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 1.1.5
+  espressif/esp-serial-flasher:
+    component_hash: 6f5d6859ce5b4a2d1a9eb42fa50aa1101096cb775cfea54440aab209bcb17c53
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.3'
+    - name: espressif/usb_host_cdc_acm
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=4.4
+      - if: target in [esp32s2, esp32s3, esp32p4]
+      version: ^2
+    - name: espressif/usb_host_ch34x_vcp
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=4.4
+      - if: target in [esp32s2, esp32s3, esp32p4]
+      version: ^2.2
+    - name: espressif/usb_host_cp210x_vcp
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=4.4
+      - if: target in [esp32s2, esp32s3, esp32p4]
+      version: ^2.2
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.11.0
   espressif/esp_codec_dev:
     component_hash: 014948481bda426cd46714f297fe1891711246c62bea288863a8cc8cf13ef1f0
     dependencies:
@@ -321,6 +352,58 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.11.1
+  espressif/usb_host_cdc_acm:
+    component_hash: f3893a5e117c65f3c4d90d282bbb43624a2fec4144532e5c72223e69bd1b00e9
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    - name: espressif/usb
+      registry_url: https://components.espressif.com
+      require: public
+      rules:
+      - if: idf_version >=6.0
+      - if: target not in ["linux"]
+      version: ^1.0.0
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    - esp32h4
+    - esp32s31
+    - linux
+    version: 2.4.0
+  espressif/usb_host_ch34x_vcp:
+    component_hash: cc6f17936a11aa0ba460e716bd9b70fcd445824bcc7882afbe3ede3513f80c59
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    - name: espressif/usb_host_cdc_acm
+      registry_url: https://components.espressif.com
+      require: public
+      version: ^2.1.0
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 2.2.0
+  espressif/usb_host_cp210x_vcp:
+    component_hash: c0404c598e2620fe88c35b5bf24d8e3b3ded41d9946fc865843be7f2f75da40e
+    dependencies:
+    - name: espressif/usb_host_cdc_acm
+      registry_url: https://components.espressif.com
+      require: public
+      version: ^2.1.0
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 2.2.0
   espressif/zlib:
     component_hash: 64ea2fd6754c5a05951f1ddb312ac835cd782e68cb5bd9dfcd1c3a107c8fbfbc
     dependencies:
@@ -343,6 +426,7 @@ dependencies:
       type: service
     version: 8.3.11
 direct_dependencies:
+- espressif/esp-serial-flasher
 - espressif/esp_codec_dev
 - espressif/esp_h264
 - espressif/esp_hosted
@@ -354,6 +438,6 @@ direct_dependencies:
 - espressif/mdns
 - idf
 - lvgl/lvgl
-manifest_hash: d506314b2d47e1748cde91f8c79e8b57b2e5d7e0fe2d737f5d21ebfc3bf317ad
+manifest_hash: b5d05a9f9bb7b90013a1989f803def055864448d5da5a9639669c1330b78f446
 target: esp32p4
 version: 2.0.0

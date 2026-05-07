@@ -7,14 +7,84 @@
 #include "driver/uart.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/task.h"
 
-#define UART_PORT      UART_NUM_1
-/* Swapped from the original 21/22 plan — bench wiring puts P4's TX line
- * on GPIO22 and RX on GPIO21. */
-#define UART_TX_PIN    GPIO_NUM_22
-#define UART_RX_PIN    GPIO_NUM_21
+#define UART_PORT      ((uart_port_t)BT_AGENT_UART_PORT)
+#define UART_TX_PIN    BT_AGENT_UART_TX
+#define UART_RX_PIN    BT_AGENT_UART_RX
 #define UART_BAUD      115200
+
+static const char *TAG = "bt_link";
+
+/* RST stays open-drain — CH2104's auto-reset transistor on EN can pull it
+ * low without warning, we'd burn pins fighting it. IO0 is push-pull because
+ * this board's D1 Mini variant has no external pull-up on GPIO0; if we left
+ * it floating during a release, the ESP32 would read whatever leakage gives
+ * (often low → stuck in download mode). Driving both rails actively makes
+ * the strap state deterministic. */
+static void bt_agent_strap_init(void)
+{
+    static bool inited;
+    if (inited) return;
+
+    gpio_config_t rst_cfg = {
+        .pin_bit_mask = (1ULL << BT_AGENT_RST_PIN),
+        .mode         = GPIO_MODE_OUTPUT_OD,
+        .pull_up_en   = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&rst_cfg);
+
+    gpio_config_t io0_cfg = {
+        .pin_bit_mask = (1ULL << BT_AGENT_IO0_PIN),
+        .mode         = GPIO_MODE_OUTPUT,           /* push-pull */
+        .pull_up_en   = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io0_cfg);
+
+    /* Idle: RST released, IO0 actively driven high (normal-boot strap). */
+    gpio_set_level(BT_AGENT_IO0_PIN, 1);
+    gpio_set_level(BT_AGENT_RST_PIN, 1);
+    inited = true;
+}
+
+void bt_agent_reset_to_app(void)
+{
+    bt_agent_strap_init();
+    /* Release IO0 first so the ESP32 reads HIGH on the next reset edge. */
+    gpio_set_level(BT_AGENT_IO0_PIN, 1);
+    /* Drive RST low for 50 ms (datasheet says ~10 ms is enough, give margin). */
+    gpio_set_level(BT_AGENT_RST_PIN, 0);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    gpio_set_level(BT_AGENT_RST_PIN, 1);
+    /* ROM bootloader needs ~100-200 ms to validate the app image and jump
+     * into it. Wait so the BT agent's first ESP_LOG line lands after we've
+     * finished UART setup, not during it. */
+    vTaskDelay(pdMS_TO_TICKS(200));
+    ESP_LOGI(TAG, "BT agent reset (IO0 high → normal boot)");
+}
+
+void bt_agent_enter_bootloader(void)
+{
+    bt_agent_strap_init();
+    /* Hold IO0 low BEFORE pulling RST so the rising edge of EN sees IO0=0. */
+    gpio_set_level(BT_AGENT_IO0_PIN, 0);
+    gpio_set_level(BT_AGENT_RST_PIN, 0);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    gpio_set_level(BT_AGENT_RST_PIN, 1);
+    /* ROM samples strap pins right after EN goes high. ~50 ms is plenty
+     * of margin (datasheet specifies 1 ms). */
+    vTaskDelay(pdMS_TO_TICKS(50));
+    /* Release IO0 — ROM has already latched its boot mode by now. Leaving
+     * it driven low would also work, but releasing lets the agent's own
+     * code use IO0 for whatever it likes once the OTA is done. */
+    gpio_set_level(BT_AGENT_IO0_PIN, 1);
+    ESP_LOGI(TAG, "BT agent forced into ROM bootloader (IO0 low @ reset)");
+}
 
 /* Heartbeat lines (BT-HB:tick=...) prove the UART link is alive. Once
  * the link is known good they're just noise on the console — drop them
@@ -25,7 +95,28 @@
  * wifi_resend_task (stops once acked). Definitions are further down. */
 static volatile bool s_wifi_acked;
 
-static const char *TAG = "bt_link";
+/* Last `BT-VER:<version>` value parsed from the agent's UART stream.
+ * 64 bytes is plenty for semver + build tag + git short hash. The event
+ * group below pulses VERSION_BIT when a new value lands so callers can
+ * wait without polling. */
+#define VERSION_BUF_LEN  64
+static char         s_agent_ver[VERSION_BUF_LEN];
+static EventGroupHandle_t s_agent_ev;
+#define AGENT_EV_VERSION_BIT  (1 << 0)
+
+const char *bt_agent_get_version(void)
+{
+    return s_agent_ver[0] ? s_agent_ver : NULL;
+}
+
+const char *bt_agent_wait_version(uint32_t timeout_ms)
+{
+    if (!s_agent_ev) return NULL;
+    EventBits_t bits = xEventGroupWaitBits(s_agent_ev, AGENT_EV_VERSION_BIT,
+                                           pdFALSE, pdTRUE,
+                                           pdMS_TO_TICKS(timeout_ms));
+    return (bits & AGENT_EV_VERSION_BIT) ? s_agent_ver : NULL;
+}
 
 /* RX task: reads everything the BT agent sends us and prints it on this
  * board's console. Lines are categorised by prefix:
@@ -61,6 +152,13 @@ static void rx_task(void *arg)
                             s_wifi_acked = true;  /* stop resend loop */
                         }
                         ESP_LOGI(TAG, "agent event %s", evt);
+                    } else if (strncmp(line, "BT-VER:", 7) == 0) {
+                        strncpy(s_agent_ver, line + 7, sizeof(s_agent_ver) - 1);
+                        s_agent_ver[sizeof(s_agent_ver) - 1] = '\0';
+                        if (s_agent_ev) {
+                            xEventGroupSetBits(s_agent_ev, AGENT_EV_VERSION_BIT);
+                        }
+                        ESP_LOGI(TAG, "agent version: %s", s_agent_ver);
                     } else {
                         /* Anything else — most likely an ESP_LOG line that
                          * skipped our tee (vprintf hook didn't catch it).
@@ -81,7 +179,11 @@ static void rx_task(void *arg)
     }
 }
 
-void bt_link_init(void)
+/* Pull these out so suspend/resume can re-run the same setup without
+ * duplicating the config struct. */
+static TaskHandle_t s_rx_task;
+
+static void bt_link_uart_install(void)
 {
     const uart_config_t cfg = {
         .baud_rate  = UART_BAUD,
@@ -96,12 +198,52 @@ void bt_link_init(void)
     ESP_ERROR_CHECK(uart_param_config(UART_PORT, &cfg));
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT, UART_TX_PIN, UART_RX_PIN,
                                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+}
+
+void bt_link_init(void)
+{
+    if (!s_agent_ev) s_agent_ev = xEventGroupCreate();
+
+    /* Force the agent into normal-boot mode before bringing UART up.
+     * The D1 Mini sometimes powers up with IO0 held low (CH2104 transient
+     * + missing pull-up depending on the board revision) and stays stuck
+     * in download mode (boot:0x3) — explicit IO0=high + RST pulse from
+     * here guarantees we always start with the user app. */
+    bt_agent_reset_to_app();
+
+    bt_link_uart_install();
     /* Mirror everything the BT agent sends on its side. See rx_task() for
      * how the inbound prefix protocol is decoded. */
-    xTaskCreatePinnedToCore(rx_task, "bt_link_rx", 4096, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(rx_task, "bt_link_rx", 4096, NULL, 5, &s_rx_task, 0);
 
     ESP_LOGI(TAG, "UART1 to BT agent ready (TX=%d, RX=%d, %d baud)",
              UART_TX_PIN, UART_RX_PIN, UART_BAUD);
+}
+
+void bt_link_suspend_for_flash(void)
+{
+    if (s_rx_task) {
+        vTaskDelete(s_rx_task);
+        s_rx_task = NULL;
+    }
+    /* uart_driver_delete is safe even if rx_task was mid-read — its blocking
+     * read returns ESP_FAIL and we've already dropped the task. */
+    uart_driver_delete(UART_PORT);
+    ESP_LOGI(TAG, "UART1 released for flasher");
+}
+
+void bt_link_resume_after_flash(void)
+{
+    /* esp_serial_flasher leaves IO0 released after esp_loader_flash_finish,
+     * but to be safe we explicitly reset back to app mode here too. */
+    bt_agent_reset_to_app();
+    bt_link_uart_install();
+    /* Clear any version observed before flash — agent app may emit a new
+     * BT-VER: that should be visible to a follow-up wait_version call. */
+    s_agent_ver[0] = '\0';
+    if (s_agent_ev) xEventGroupClearBits(s_agent_ev, AGENT_EV_VERSION_BIT);
+    xTaskCreatePinnedToCore(rx_task, "bt_link_rx", 4096, NULL, 5, &s_rx_task, 0);
+    ESP_LOGI(TAG, "UART1 reattached after flasher");
 }
 
 /* Pre-built WIFI line, kept around so the resend task can re-emit it. */

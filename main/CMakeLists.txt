@@ -17,6 +17,7 @@ idf_component_register(
         "ble_host.c"
         "ble_nus.c"
         "bt_link.c"
+        "bt_agent_ota.c"
         "h264_pipe.c"
         "display_video.c"
         "touch_input.c"
@@ -43,6 +44,7 @@ idf_component_register(
         mbedtls
         driver
         c6_ota_partition
+        bt_agent_fw
         esp32_p4_wifi6_touch_lcd_4_3
         espressif__esp_h264
         espressif__esp_lvgl_adapter

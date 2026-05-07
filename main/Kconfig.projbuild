@@ -60,4 +60,53 @@ menu "Android Auto Head Unit"
             and switches CPU divider to 1 right after NVS init.
             Disable this if the chip becomes unstable or refuses to boot.
 
+    menu "BT Agent OTA (Mode A)"
+
+        config BT_AGENT_OTA_ENABLED
+            bool "Reflash BT agent on version mismatch"
+            default n
+            help
+                On boot, parse the agent's BT-VER:<version> line and compare
+                to BT_AGENT_FW_VERSION below. On mismatch, force the D1 Mini
+                into ROM bootloader (via GPIO24/25) and reflash from the
+                binary embedded at components/bt_agent_fw/bt_agent_fw.bin.
+                Uses the espressif/esp_serial_flasher managed component.
+
+                Build will fail with a clear error if enabled without the
+                binary present. To disable OTA without removing the binary,
+                just keep this option n.
+
+        config BT_AGENT_FW_VERSION
+            string "Expected BT agent firmware version"
+            depends on BT_AGENT_OTA_ENABLED
+            default "0.1.0"
+            help
+                Must exactly match what the agent emits on boot via
+                `BT-VER:<version>`. Bump this in lockstep with the agent
+                firmware build. If the agent reports a different value
+                (or no value within BT_AGENT_VERSION_TIMEOUT_MS), OTA fires.
+
+        config BT_AGENT_VERSION_TIMEOUT_MS
+            int "Timeout waiting for BT-VER: line (ms)"
+            depends on BT_AGENT_OTA_ENABLED
+            default 3000
+            range 500 30000
+            help
+                If the agent doesn't emit a BT-VER: line within this window
+                after bt_link_init's reset, treat it as a missing/broken
+                firmware and trigger OTA. Bump if the agent's app is slow
+                to start (NVS scan, sensor init, etc.).
+
+        config BT_AGENT_FLASH_BAUD
+            int "Flasher baud rate during OTA"
+            depends on BT_AGENT_OTA_ENABLED
+            default 460800
+            help
+                ROM bootloader sync at 115200, then renegotiate up to this
+                rate for the actual write. 460800 is the safe default for
+                ESP32 over short wires; 921600 usually works too but cuts
+                error margin.
+
+    endmenu
+
 endmenu

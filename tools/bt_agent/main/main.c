@@ -35,6 +35,13 @@
 
 static const char *TAG = "bt_agent";
 
+/* Firmware version reported back to P4 over UART on boot via "BT-VER:<v>".
+ * P4's bt_agent_ota compares this against CONFIG_BT_AGENT_FW_VERSION; on
+ * mismatch it forces this chip into ROM bootloader and reflashes from the
+ * embedded blob. Bump together with the CONFIG_BT_AGENT_FW_VERSION default
+ * in main/Kconfig.projbuild on the P4 side any time the agent code changes. */
+#define BT_AGENT_FW_VERSION "0.1.0"
+
 /* ---------- User-configurable identity / Wifi creds ---------- */
 
 /* BT device name we expose to the phone. Set to a placeholder until P4
@@ -498,6 +505,7 @@ void app_main(void)
 
     uart_link_init();
     uart_link_say("BT:BOOT");
+    uart_link_say("BT-VER:" BT_AGENT_FW_VERSION);
 
     init_bt();
 

@@ -17,3 +17,11 @@ dependencies:
   # naive C BT.601 loop. PPA handles the 90° rotation on the RGB output.
   espressif/esp_image_effects:
     version: "^1.0.1"
+  # ROM-bootloader serial flasher protocol — used by bt_agent_ota to reflash
+  # the D1 Mini ESP32 (BT agent) over UART when its firmware version drifts
+  # from CONFIG_BT_AGENT_FW_VERSION. Library is dead-stripped by the linker
+  # when CONFIG_BT_AGENT_OTA_ENABLED is unset (no callers).
+  espressif/esp-serial-flasher:
+    version: "^1.7.0"
+    rules:
+      - if: "idf_version >=5.0"
