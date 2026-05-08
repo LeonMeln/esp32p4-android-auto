@@ -1003,9 +1003,16 @@ static esp_err_t handle_av_setup(int sock, aa_tls_t *tls,
     uint8_t resp[12];
     size_t  rp = 0;
     pb_w_uint32(resp, sizeof(resp), &rp, 1, 2 /* MEDIA_STATUS_2 */);
-    pb_w_uint32(resp, sizeof(resp), &rp, 2, 4 /* max_unacked — gearhead
-        bursts past 1 anyway, so advertise headroom that matches our
-        decode queue depth and avoid recv-loop back-pressure stalls. */);
+    pb_w_uint32(resp, sizeof(resp), &rp, 2, 8 /* max_unacked — controls how
+        many frames the phone keeps in flight before waiting for our acks.
+        Each in-flight frame is ~33 ms of touch→video lag (we ack after
+        display, so phone paces to our decode rate via this window).
+        1 tripped FRAMER_WRITER_STALL within 20-30 s. 4 was comfortable
+        but felt sluggish (~130 ms queued lag). 2 halved input latency
+        but pushed back-pressure closer to the stall edge. 8 gives the
+        phone plenty of headroom — touch lag is worse, but we shouldn't
+        ever back-pressure the recv-loop; useful for diagnosing whether
+        stalls/judder come from the unack window or from elsewhere. */);
     pb_w_uint32(resp, sizeof(resp), &rp, 3, 0 /* configs[0] = use config 0 */);
     esp_err_t err = send_encrypted(sock, tls, ch, AA_MSG_AV_MEDIA_SETUP_RESP,
                                    resp, rp, cipher_buf, cipher_cap);

@@ -37,8 +37,20 @@ void ui_mode_set(ui_mode_t mode)
 {
     if (!s_inited) return;
     if (atomic_load(&s_mode) == mode) return;
-    if (bsp_display_lock(200) != ESP_OK) return;
     if (mode == UI_MODE_VESC) {
+        /* Flip the mode flag BEFORE we let LVGL start rendering the VESC
+         * dashboard. Decoder thread (display_video_show_yuv420) checks
+         * ui_mode_get() at the top and takes the VESC early-out, which
+         * resumes the worker and drops the frame. If we did this in the
+         * opposite order — load+invalidate vesc → resume LVGL → store mode
+         * — a decoder pass that read mode==AA before our store would dive
+         * into the AA branch and call esp_lv_adapter_pause(2000) just as
+         * the worker started a full-screen redraw of ~1700 GUI Guider
+         * widgets. That redraw is heavy enough on 800×480 that pause()
+         * times out, leaving the AA path stuck in 2 s/frame mode after
+         * every AA→VESC→AA toggle. */
+        atomic_store(&s_mode, mode);
+        if (bsp_display_lock(200) != ESP_OK) return;
         lv_obj_t *vesc = vesc_ui_get_screen();
         if (vesc) {
             lv_scr_load(vesc);
@@ -51,13 +63,20 @@ void ui_mode_set(ui_mode_t mode)
         }
         /* Resume LVGL worker now if the video sink had paused it —
          * otherwise the dashboard wouldn't repaint until the next
-         * decoded frame triggers the resume from inside show_yuv420. */
+         * decoded frame triggers the resume from inside show_yuv420.
+         * Idempotent — if the decoder already raced us through the VESC
+         * branch above and resumed, this is a no-op. */
         display_video_yield_panel();
+        bsp_display_unlock();
     } else {
+        /* AA: load the (mostly empty) AA screen FIRST so when we flip the
+         * mode flag the next decoder pass sees a worker with nothing heavy
+         * to redraw, and esp_lv_adapter_pause completes immediately. */
+        if (bsp_display_lock(200) != ESP_OK) return;
         if (s_aa_screen) lv_scr_load(s_aa_screen);
+        bsp_display_unlock();
+        atomic_store(&s_mode, mode);
     }
-    bsp_display_unlock();
-    atomic_store(&s_mode, mode);
     /* Tell touch_input which consumer should see GT911 events — LVGL when
      * the VESC dashboard is up, AA when the phone is the active screen. */
     touch_input_set_mode(mode == UI_MODE_VESC ? TOUCH_MODE_LVGL : TOUCH_MODE_AA);

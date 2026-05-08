@@ -56,35 +56,63 @@ fi
 PYTHON="${PYTHON:-python3}"
 
 "$PYTHON" - "$PORT" "$BAUD" "$DURATION" "$LOG" <<'PYEOF'
-import sys, time, serial
+import os, sys, time, serial
 
 port, baud, dur, out = sys.argv[1], int(sys.argv[2]), float(sys.argv[3]), sys.argv[4]
 
-s = serial.Serial(port, baud, timeout=0.5)
-# Standard ESP32 normal-boot reset:
-#   DTR controls IO0 (boot mode), RTS controls EN (reset). Both active-low.
-#   For a normal boot we want IO0=high (DTR=False) the whole time, and pulse
-#   EN low→high (RTS=True→False).
-# Keeping RTS asserted after the pulse leaves the chip in reset — that's the
-# bug the previous version had.
-s.dtr = False
-s.rts = True            # EN low → chip held in reset
-time.sleep(0.1)
-s.rts = False           # EN high → chip boots normally
-s.reset_input_buffer()
+def open_port(reset):
+    s = serial.Serial(port, baud, timeout=0.5)
+    if reset:
+        # Standard ESP32 normal-boot reset:
+        #   DTR controls IO0 (boot mode), RTS controls EN (reset). Both active-low.
+        #   For a normal boot we want IO0=high (DTR=False) the whole time, and pulse
+        #   EN low→high (RTS=True→False).
+        # Keeping RTS asserted after the pulse leaves the chip in reset — that's the
+        # bug the previous version had.
+        s.dtr = False
+        s.rts = True            # EN low → chip held in reset
+        time.sleep(0.1)
+        s.rts = False           # EN high → chip boots normally
+        s.reset_input_buffer()
+    return s
 
+s = open_port(reset=True)
 end = time.time() + dur
 with open(out, "wb") as f:
-    try:
-        while time.time() < end:
+    while time.time() < end:
+        try:
             data = s.read(4096)
-            if data:
-                f.write(data); f.flush()
-                # Mirror to stdout so you can watch live too.
-                sys.stdout.buffer.write(data); sys.stdout.flush()
-    except KeyboardInterrupt:
-        pass
-s.close()
+        except KeyboardInterrupt:
+            break
+        except (serial.SerialException, OSError) as e:
+            # USB-CDC vanished — chip may be rebooting (post-OTA, brownout,
+            # cable jiggle). Don't crash — close, wait for the device node to
+            # reappear, reopen WITHOUT resetting (we don't want to interrupt
+            # whatever the chip is doing now), and keep capturing.
+            sys.stdout.buffer.write(
+                f"\n[capture: serial dropped: {e!r} — reopening]\n".encode())
+            sys.stdout.flush()
+            try: s.close()
+            except Exception: pass
+            while time.time() < end:
+                if os.path.exists(port):
+                    try:
+                        s = open_port(reset=False)
+                        sys.stdout.buffer.write(b"[capture: reopened]\n")
+                        sys.stdout.flush()
+                        break
+                    except (serial.SerialException, OSError):
+                        pass
+                time.sleep(0.5)
+            else:
+                break
+            continue
+        if data:
+            f.write(data); f.flush()
+            # Mirror to stdout so you can watch live too.
+            sys.stdout.buffer.write(data); sys.stdout.flush()
+try: s.close()
+except Exception: pass
 PYEOF
 
 echo >&2

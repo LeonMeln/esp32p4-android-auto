@@ -72,6 +72,14 @@ CONFIG_ESP_WIFI_TX_BUFFER_TYPE=0
 CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=16
 CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=32
 
+# ===== VESC CAN pins =====
+# Wired on this board: GPIO 48 = TX → SN65HVD230 D, GPIO 47 = RX ← R.
+# The Kconfig defaults (20/24) collide with bt_agent (24) and other BSP
+# pins; pin them explicitly here so a fresh sdkconfig regeneration doesn't
+# silently put us back on the conflicting pins.
+CONFIG_VESC_CAN_TX_GPIO=48
+CONFIG_VESC_CAN_RX_GPIO=47
+
 # esp_serial_flasher (used by bt_agent_ota): bump retries 3→10. Single-byte
 # UART drops under sustained load occasionally burned through 3 retries;
 # 10 absorbs the jitter without measurably hurting normal throughput.

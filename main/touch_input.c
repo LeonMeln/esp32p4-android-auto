@@ -104,6 +104,28 @@ static void poll_task(void *arg)
 
             const touch_mode_t mode = (touch_mode_t)atomic_load(&s_mode);
 
+            /* Press/release transitions in raw panel coords — independent of
+             * mode-specific rotation. Useful for figuring out whether GT911
+             * is firing the events the rest of the pipeline expects. */
+            static bool     prev_any;
+            static uint8_t  prev_cnt;
+            const bool any_now = (cnt > 0);
+            if (any_now != prev_any) {
+                if (any_now) {
+                    ESP_LOGI(TAG, "DOWN cnt=%u panel=(%u,%u) mode=%s",
+                             cnt, tx[0], ty[0],
+                             mode == TOUCH_MODE_AA ? "AA" : "LVGL");
+                } else {
+                    ESP_LOGI(TAG, "UP   mode=%s",
+                             mode == TOUCH_MODE_AA ? "AA" : "LVGL");
+                }
+                prev_any = any_now;
+            } else if (any_now && cnt != prev_cnt) {
+                ESP_LOGI(TAG, "CNT  %u->%u panel=(%u,%u)",
+                         prev_cnt, cnt, tx[0], ty[0]);
+            }
+            prev_cnt = cnt;
+
             if (mode == TOUCH_MODE_LVGL) {
                 /* Rotate panel-native portrait (480x800) to LVGL landscape
                  * (800x480) — matches BSP's ESP_LV_ADAPTER_ROTATE_90.
