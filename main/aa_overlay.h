@@ -2,15 +2,18 @@
 
 #include <stdint.h>
 
-/* Paint a translucent VESC HUD (speed left-middle, battery right-middle)
- * onto a panel-native RGB565 framebuffer. The framebuffer is assumed to
- * already hold a 90° CW-rotated AA video frame (480 wide × 800 tall in
- * panel-native coords; the user looks at it in landscape — 800 wide ×
- * 480 tall). Coordinates are mapped from user-landscape to panel-native
- * inside this function.
+/* Paint a translucent VESC HUD onto a panel-native RGB565 framebuffer.
+ * Two compact widgets sit in the AA bottom-bar gaps (the empty zones
+ * between mic and the app icon cluster, and between the cluster and the
+ * clock): "64 KM/H" on the left, a small battery icon + "78%" on the right.
  *
- * Reads vesc_rt_data; if the snapshot isn't fresh, draws "--" placeholders
- * so the user can tell the head unit is alive but the VESC is silent.
+ * The framebuffer is assumed to already hold a 90° CW-rotated AA video
+ * frame (480 wide × 800 tall in panel-native coords; the user looks at it
+ * in landscape — 800 wide × 480 tall). Coordinates are mapped from
+ * user-landscape to panel-native inside this function.
+ *
+ * Pulls values from cockpit_get_speed_value / cockpit_get_battery_proc_value
+ * so the HUD always agrees with the dashboard (demo mode included).
  *
  * Pure CPU; ~1-2 ms per call on ESP32-P4 @400 MHz. Caller is responsible
  * for cache flushing the buffer afterwards before handing it to the LCD

@@ -14,21 +14,33 @@
 #define USER_W    800
 #define USER_H    480
 
-#define MARGIN_X        16
-#define CENTER_Y        (USER_H / 2)
-#define COLOR_TEXT      0x0000u     /* RGB565 black */
-#define COLOR_OUTLINE   0xFFFFu     /* RGB565 white halo so digits stay legible
-                                       on dark video backgrounds too */
-#define GLOBAL_ALPHA    220u        /* 0..255 — slight transparency over video */
+/* AA bottom-bar zone we paint into. AA's own stock bar is ~10 % of frame
+ * height (~48 px on a 480-tall user image). We hug the bottom and use the
+ * free gaps the AA bar leaves between the mic/app cluster and the clock.
+ *
+ * Anchors chosen empirically against the stock AA layout (Pixel, AA 11):
+ *   left zone  ≈ x 110..290 (between mic & Maps icon)
+ *   right zone ≈ x 510..720 (between settings & clock)
+ * Slight breathing room from the icons keeps widgets readable even when
+ * AA tweaks bar spacing by a few px. */
+#define BAR_BOTTOM_PAD  3
+#define SPEED_LEFT_X    150
+#define BATT_RIGHT_X    678
 
-/* Antonio Regular 64 — the project's display font (Super_VESC_Display
- * generated_fonts), already compiled in for the dashboard widgets.
- * Tall/narrow numeric look that reads at a glance even over busy video. */
-extern const lv_font_t lv_font_Antonio_Regular_64;
+#define COLOR_TEXT      0xFFFFu     /* RGB565 white */
+#define COLOR_OUTLINE   0x0000u     /* RGB565 black halo — keeps text legible
+                                       even if AA shifts its bar around or
+                                       shows a brighter app there */
+#define COLOR_BATT_OK   0x4FE8u     /* RGB565 lime — matches AA accent green */
+#define COLOR_BATT_MID  0xFD20u     /* amber, 20-50 % */
+#define COLOR_BATT_LOW  0xF800u     /* red, <20 % */
+#define GLOBAL_ALPHA    230u
+
+extern const lv_font_t lv_font_Antonio_Regular_64;  /* big digits */
+extern const lv_font_t lv_font_Antonio_Regular_22;  /* small unit label */
 
 /* 4-bpp anti-aliased opacity table — same numbers LVGL uses internally
- * (lv_draw_sw_letter.c::_lv_bpp4_opa_table). Lets us share the rasteriser
- * with whatever bpp the font happens to use. */
+ * (lv_draw_sw_letter.c::_lv_bpp4_opa_table). */
 static const uint8_t bpp4_opa[16] = {
       0, 17, 34, 51, 68, 85, 102, 119,
     136, 153, 170, 187, 204, 221, 238, 255
@@ -59,8 +71,17 @@ static inline void blend_user_pixel(uint16_t *fb, int ux, int uy,
     fb[idx] = (r << 11) | (g << 5) | b;
 }
 
-/* Render one glyph at (pen_x, line_top_y) in user-landscape coords; return
- * the advance width so caller can chain glyphs along a baseline. */
+static void fill_user_rect(uint16_t *fb, int x, int y, int w, int h,
+                           uint16_t color, uint8_t alpha)
+{
+    for (int dy = 0; dy < h; dy++) {
+        for (int dx = 0; dx < w; dx++) {
+            blend_user_pixel(fb, x + dx, y + dy, color, alpha);
+        }
+    }
+}
+
+/* Render one glyph at (pen_x, line_top_y); return the advance width. */
 static uint16_t draw_glyph(uint16_t *fb, const lv_font_t *font, uint32_t letter,
                            int pen_x, int line_top_y,
                            uint16_t color, uint8_t global_alpha)
@@ -71,9 +92,6 @@ static uint16_t draw_glyph(uint16_t *fb, const lv_font_t *font, uint32_t letter,
     const uint8_t *bm = lv_font_get_glyph_bitmap(font, letter);
     if (!bm) return g.adv_w;
 
-    /* Same vertical placement formula as lv_draw_sw_letter.c:
-     *   gy0 = line_top + (line_height - base_line) - box_h - ofs_y
-     */
     int ascent = font->line_height - font->base_line;
     int gy0 = line_top_y + ascent - g.box_h - g.ofs_y;
     int gx0 = pen_x + g.ofs_x;
@@ -121,28 +139,77 @@ static int measure_text(const lv_font_t *font, const char *s)
     return w;
 }
 
-static void draw_text(uint16_t *fb, const lv_font_t *font,
-                      int pen_x, int line_top_y, const char *s,
-                      uint16_t color, uint8_t alpha)
+/* line_top placement for a given font so that its baseline lands on
+ * baseline_y (shared across fonts of different sizes). */
+static inline int line_top_for_baseline(const lv_font_t *f, int baseline_y)
 {
+    int ascent = f->line_height - f->base_line;
+    return baseline_y - ascent;
+}
+
+static int draw_text(uint16_t *fb, const lv_font_t *font,
+                     int pen_x, int line_top_y, const char *s,
+                     uint16_t color, uint8_t alpha)
+{
+    int x0 = pen_x;
     while (*s) {
         pen_x += draw_glyph(fb, font, (unsigned char)*s++, pen_x, line_top_y,
                             color, alpha);
     }
+    return pen_x - x0;
 }
 
-/* Black text + a 1-px white halo (N/S/E/W). 4 outline passes is enough to
- * keep dark digits readable against dark video backgrounds; a full 8-way
+/* White text + a 1-px black halo (N/S/E/W). 4 outline passes is enough to
+ * keep light digits readable against any video background; a full 8-way
  * outline would be twice the cost for diagonal pixels barely visible at
  * this font size. */
-static void draw_text_with_shadow(uint16_t *fb, const lv_font_t *font,
-                                  int pen_x, int line_top_y, const char *s)
+static int draw_text_with_halo(uint16_t *fb, const lv_font_t *font,
+                               int pen_x, int line_top_y, const char *s)
 {
     draw_text(fb, font, pen_x - 1, line_top_y,     s, COLOR_OUTLINE, GLOBAL_ALPHA);
     draw_text(fb, font, pen_x + 1, line_top_y,     s, COLOR_OUTLINE, GLOBAL_ALPHA);
     draw_text(fb, font, pen_x,     line_top_y - 1, s, COLOR_OUTLINE, GLOBAL_ALPHA);
     draw_text(fb, font, pen_x,     line_top_y + 1, s, COLOR_OUTLINE, GLOBAL_ALPHA);
-    draw_text(fb, font, pen_x,     line_top_y,     s, COLOR_TEXT,    GLOBAL_ALPHA);
+    return draw_text(fb, font, pen_x, line_top_y, s, COLOR_TEXT, GLOBAL_ALPHA);
+}
+
+/* Battery glyph: rounded body + small tip on the right, level fill scales
+ * with `pct` (0..100). Drawn in user-landscape coords, top-left anchor.
+ * Body is BATT_W × BATT_H, tip BATT_TIP_W × BATT_TIP_H centered vertically. */
+#define BATT_W      28
+#define BATT_H      14
+#define BATT_TIP_W  3
+#define BATT_TIP_H  6
+
+static void draw_battery_icon(uint16_t *fb, int x, int y, int pct)
+{
+    uint16_t fill = (pct <= 20) ? COLOR_BATT_LOW
+                  : (pct < 50)  ? COLOR_BATT_MID
+                  : COLOR_BATT_OK;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+
+    /* Halo: 1-px black ring around the icon so it pops on any background. */
+    fill_user_rect(fb, x - 1, y - 1, BATT_W + BATT_TIP_W + 2, BATT_H + 2,
+                   COLOR_OUTLINE, GLOBAL_ALPHA);
+
+    /* Body outline (white, 1px). */
+    fill_user_rect(fb, x, y, BATT_W, BATT_H, COLOR_TEXT, GLOBAL_ALPHA);
+
+    /* Inner cut-out (dark) — keeps fill level readable. */
+    fill_user_rect(fb, x + 2, y + 2, BATT_W - 4, BATT_H - 4,
+                   COLOR_OUTLINE, GLOBAL_ALPHA);
+
+    /* Fill from the left, proportional to pct. */
+    int fill_w = (BATT_W - 4) * pct / 100;
+    if (fill_w > 0) {
+        fill_user_rect(fb, x + 2, y + 2, fill_w, BATT_H - 4, fill, GLOBAL_ALPHA);
+    }
+
+    /* Tip on the right, vertically centered. */
+    int tip_y = y + (BATT_H - BATT_TIP_H) / 2;
+    fill_user_rect(fb, x + BATT_W, tip_y, BATT_TIP_W, BATT_TIP_H,
+                   COLOR_TEXT, GLOBAL_ALPHA);
 }
 
 void aa_overlay_draw(uint16_t *fb)
@@ -151,24 +218,46 @@ void aa_overlay_draw(uint16_t *fb)
 
     /* Pull the same numbers the cockpit shows. cockpit_get_*() return the
      * last value passed to update_speed / update_battery_proc, so AA HUD
-     * agrees with the dashboard, demo mode included. The values are stale
-     * while the user is in AA (vesc_ui_updater is an LVGL timer and the
-     * worker is paused) — that's fine, they reflect the latest reading
-     * the cockpit got, and refresh as soon as the user toggles back. */
+     * agrees with the dashboard, demo mode included. */
+    int speed = cockpit_get_speed_value();
+    int batt  = cockpit_get_battery_proc_value();
+
     char speed_buf[8];
     char batt_buf[8];
-    snprintf(speed_buf, sizeof speed_buf, "%d",
-             cockpit_get_speed_value());
-    snprintf(batt_buf,  sizeof batt_buf,  "%d%%",
-             cockpit_get_battery_proc_value());
+    snprintf(speed_buf, sizeof speed_buf, "%d", speed);
+    snprintf(batt_buf,  sizeof batt_buf,  "%d", batt);
 
-    const lv_font_t *f = &lv_font_Antonio_Regular_64;
-    int line_top = CENTER_Y - f->line_height / 2;
+    const lv_font_t *big = &lv_font_Antonio_Regular_64;
+    const lv_font_t *sml = &lv_font_Antonio_Regular_22;
 
-    /* Speed: anchored at left margin. */
-    draw_text_with_shadow(fb, f, MARGIN_X, line_top, speed_buf);
+    /* Shared baseline at BAR_BOTTOM_PAD px above the frame bottom. Both
+     * fonts hang their glyphs from this baseline so digits and unit labels
+     * sit on the same line regardless of size. */
+    int baseline_y = USER_H - BAR_BOTTOM_PAD;
+    int big_top = line_top_for_baseline(big, baseline_y);
+    int sml_top = line_top_for_baseline(sml, baseline_y);
 
-    /* Battery: right-aligned at right margin. */
-    int pen_x = USER_W - MARGIN_X - measure_text(f, batt_buf);
-    draw_text_with_shadow(fb, f, pen_x, line_top, batt_buf);
+    /* ── Speed widget (left) ──
+     * "64" in big, " KM/H" in small, anchored to SPEED_LEFT_X. */
+    int x = SPEED_LEFT_X;
+    x += draw_text_with_halo(fb, big, x, big_top, speed_buf);
+    x += 4;
+    draw_text_with_halo(fb, sml, x, sml_top, "KM/H");
+
+    /* ── Battery widget (right) ──
+     * [icon] [gap] "78" big "%" small, right-anchored at BATT_RIGHT_X. */
+    int batt_digits_w = measure_text(big, batt_buf);
+    int pct_w         = measure_text(sml, "%");
+    int icon_total_w  = BATT_W + BATT_TIP_W;
+    int icon_gap      = 6;
+    int total_w = icon_total_w + icon_gap + batt_digits_w + 1 + pct_w;
+
+    int x0 = BATT_RIGHT_X - total_w;
+    int icon_y = baseline_y - (big->line_height - big->base_line) +
+                 ((big->line_height - big->base_line) - BATT_H) / 2;
+    draw_battery_icon(fb, x0, icon_y, batt);
+    int xt = x0 + icon_total_w + icon_gap;
+    xt += draw_text_with_halo(fb, big, xt, big_top, batt_buf);
+    xt += 1;
+    draw_text_with_halo(fb, sml, xt, sml_top, "%");
 }
