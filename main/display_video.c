@@ -52,13 +52,30 @@ static bool                s_adapter_paused;
  * mode-switch back to VESC. */
 static bool                s_pause_attempted;
 static SemaphoreHandle_t   s_refresh_sem;
-/* Intermediate landscape RGB565 buffer for the split PPA+CPU rotate
- * path. Allocated lazily in display_video_show_yuv420 once we know the
- * source dimensions. */
-static uint16_t           *s_landscape_rgb;
+/* Two intermediate OUYY/EVYY staging buffers — ping-pong so the CPU
+ * shuffle of frame N can run while PPA processes frame N-1 from the
+ * other buffer. Allocated lazily on first frame. */
+static uint16_t           *s_landscape_rgb;          /* stag[0] */
+static uint16_t           *s_landscape_rgb_b;        /* stag[1] */
 static size_t              s_landscape_rgb_bytes;
 static uint16_t            s_landscape_w;
 static uint16_t            s_landscape_h;
+static int                 s_stag_idx;               /* which stag the next shuffle writes into */
+
+/* PPA non-blocking state. Submission of frame N fires asynchronously;
+ * the next call (frame N+1) waits for it, runs overlay+draw on the
+ * resulting FB, then submits its own PPA. Net effect: PPA HW (15 ms)
+ * overlaps with the CPU shuffle of the following frame (19 ms), hiding
+ * the PPA wait entirely in steady state. Adds 1 frame of pipeline
+ * latency (frame N is on screen during the call for frame N+1).
+ *
+ * Ack semantics: h264_pipe fires the ack right after show_yuv420
+ * returns. With async PPA that's after we've submitted N but before
+ * N is drawn — phone-side gearhead sees acks slightly earlier than
+ * before, but max_unacked is ignored anyway so pacing is unchanged. */
+static SemaphoreHandle_t   s_ppa_done_sem;
+static bool                s_ppa_pending;
+static int                 s_pending_fb_idx;
 /* SIMD-accelerated I420→RGB565 converter handle from esp_image_effects.
  * Allocated lazily once we know the source resolution; reused for every
  * frame. Not thread-safe — only the single decoder task touches it. */
@@ -204,6 +221,20 @@ static bool IRAM_ATTR refresh_done_cb(esp_lcd_panel_handle_t panel,
     return hp == pdTRUE;
 }
 
+/* PPA SRM transaction-done callback (ISR context). Gives the binary
+ * semaphore so the consumer thread can proceed with overlay+draw on
+ * the just-rendered framebuffer. Returns true if a higher-priority
+ * task was woken (FreeRTOS yields on return). */
+static bool ppa_trans_done_cb(ppa_client_handle_t client,
+                              ppa_event_data_t *event,
+                              void *user_data)
+{
+    (void)client; (void)event; (void)user_data;
+    BaseType_t hp = pdFALSE;
+    xSemaphoreGiveFromISR(s_ppa_done_sem, &hp);
+    return hp == pdTRUE;
+}
+
 esp_err_t display_video_init(void)
 {
     if (s_panel) return ESP_OK;
@@ -251,6 +282,21 @@ esp_err_t display_video_init(void)
     err = ppa_register_client(&ppa_cfg, &s_ppa);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "ppa_register_client: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    /* PPA done semaphore + ISR callback. Binary sem given by the PPA
+     * transaction-done callback; consumer (show_yuv420) takes it before
+     * touching the freshly-rendered FB. */
+    s_ppa_done_sem = xSemaphoreCreateBinary();
+    if (!s_ppa_done_sem) {
+        ESP_LOGE(TAG, "ppa_done_sem create failed");
+        return ESP_FAIL;
+    }
+    ppa_event_callbacks_t ppa_cbs = { .on_trans_done = ppa_trans_done_cb };
+    err = ppa_client_register_event_callbacks(s_ppa, &ppa_cbs);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ppa register cbs: %s", esp_err_to_name(err));
         return err;
     }
 
@@ -666,41 +712,91 @@ esp_err_t display_video_show_yuv420(const uint8_t *yuv,
         return err;
     }
 #elif DISPLAY_JPEG_SHUFFLE_THEN_PPA_YUV420
-    /* Step 1: CPU shuffle planar I420 → JPEG-MCU YUV420 layout (4×Y + U + V
-     *         8x8 blocks per 16×16 macroblock). No colour math.
-     * Step 2: PPA YUV420 → RGB565 + 270° rotation in one HW pass.
+    /* Async pipeline:
+     *   t=0   shuffle YUV(N) → stag[N%2]                 (CPU, 19 ms)
+     *               in parallel, PPA HW finishes PPA(N-1) (started 35 ms ago,
+     *               takes 15 ms, so done long before we get to the wait)
+     *   t=19  take ppa_done_sem (instant in steady state)
+     *   t=19  invalidate fb[pending] / overlay / flush   (CPU, 6 ms)
+     *   t=25  esp_lcd_panel_draw_bitmap fb[pending]       (~0 ms)
+     *   t=25  submit PPA(stag[N%2] → fb[N%2]) non-block  (instant)
+     *   return → decoder fires ack(N)
      *
-     * Buffer size: W*H*1.5 (same total bytes as I420 — just reordered). */
+     * Net show-call cost: ~25 ms (CPU) vs the sync 41 ms — the 15 ms PPA
+     * wait disappears because it overlaps with the next frame's shuffle.
+     * Trade-off: frame N is on screen one show-call later (during call N+1),
+     * adding 1 frame of pipeline latency. */
     {
         size_t need = ALIGN_UP((size_t)src_w * src_h * 3 / 2, s_cache_line);
-        if (s_landscape_rgb == NULL || need > s_landscape_rgb_bytes ||
+        if (s_landscape_rgb == NULL || s_landscape_rgb_b == NULL ||
+            need > s_landscape_rgb_bytes ||
             src_w != s_landscape_w || src_h != s_landscape_h) {
             free(s_landscape_rgb);
-            s_landscape_rgb = heap_caps_aligned_calloc(s_cache_line, 1,
-                                                       need,
+            free(s_landscape_rgb_b);
+            s_landscape_rgb = heap_caps_aligned_calloc(s_cache_line, 1, need,
                                                        MALLOC_CAP_SPIRAM);
-            if (!s_landscape_rgb) {
+            s_landscape_rgb_b = heap_caps_aligned_calloc(s_cache_line, 1, need,
+                                                         MALLOC_CAP_SPIRAM);
+            if (!s_landscape_rgb || !s_landscape_rgb_b) {
                 ESP_LOGE(TAG, "yuv420 staging alloc %u failed", (unsigned)need);
                 return ESP_ERR_NO_MEM;
             }
             s_landscape_rgb_bytes = need;
             s_landscape_w = src_w;
             s_landscape_h = src_h;
+            /* Reset async state — old pending submission targets a stale
+             * buffer if dimensions just changed. */
+            s_ppa_pending = false;
+            s_stag_idx = 0;
         }
+
+        uint16_t *stag = (s_stag_idx == 0) ? s_landscape_rgb
+                                           : s_landscape_rgb_b;
+        size_t out_buf_size = ALIGN_UP(PANEL_NATIVE_W * PANEL_NATIVE_H * 2,
+                                       s_cache_line);
 
         int64_t t_total_start = esp_timer_get_time();
         int64_t t0 = t_total_start;
 
-        i420_to_ouyy_evyy(yuv, src_w, src_h, (uint8_t *)s_landscape_rgb);
-        esp_cache_msync(s_landscape_rgb, s_landscape_rgb_bytes,
+        /* (1) Shuffle YUV(N) into our staging slot. PPA(N-1), if pending,
+         * runs in parallel — this is the whole point of the async path. */
+        i420_to_ouyy_evyy(yuv, src_w, src_h, (uint8_t *)stag);
+        esp_cache_msync(stag, s_landscape_rgb_bytes,
                         ESP_CACHE_MSYNC_FLAG_DIR_C2M);
         int64_t t_shuffle_end = esp_timer_get_time();
 
-        size_t out_buf_size = ALIGN_UP(PANEL_NATIVE_W * PANEL_NATIVE_H * 2,
-                                       s_cache_line);
+        /* (2) Wait for PPA(N-1) and finish drawing it. Skipped on the very
+         * first frame of a session (no in-flight PPA yet). */
+        int64_t t_overlay_end = t_shuffle_end;
+        if (s_ppa_pending) {
+            xSemaphoreTake(s_ppa_done_sem, portMAX_DELAY);
+            s_ppa_pending = false;
+
+            esp_cache_msync(s_fb[s_pending_fb_idx], out_buf_size,
+                            ESP_CACHE_MSYNC_FLAG_DIR_M2C |
+                            ESP_CACHE_MSYNC_FLAG_INVALIDATE);
+            aa_overlay_draw((uint16_t *)s_fb[s_pending_fb_idx]);
+            esp_cache_msync(s_fb[s_pending_fb_idx], out_buf_size,
+                            ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+            t_overlay_end = esp_timer_get_time();
+
+            esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, 0, 0,
+                                                     PANEL_NATIVE_W,
+                                                     PANEL_NATIVE_H,
+                                                     s_fb[s_pending_fb_idx]);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "panel_draw_bitmap (yuv420+ppa async): %s",
+                         esp_err_to_name(err));
+            }
+        }
+        int64_t t_draw_end = esp_timer_get_time();
+
+        /* (3) Submit PPA(N) non-blocking. Output FB is the current `idx`
+         * the function picked at the top; record it so the next call can
+         * draw it. */
         ppa_srm_oper_config_t op = {
             .in = {
-                .buffer  = s_landscape_rgb,
+                .buffer  = stag,
                 .pic_w   = src_w,
                 .pic_h   = src_h,
                 .block_w = src_w,
@@ -719,40 +815,30 @@ esp_err_t display_video_show_yuv420(const uint8_t *yuv,
             .rotation_angle = PPA_SRM_ROTATION_ANGLE_270,
             .scale_x = 1.0f,
             .scale_y = 1.0f,
-            .mode    = PPA_TRANS_MODE_BLOCKING,
+            .mode    = PPA_TRANS_MODE_NON_BLOCKING,
         };
         esp_err_t err = ppa_do_scale_rotate_mirror(s_ppa, &op);
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "ppa yuv420+rot: %s", esp_err_to_name(err));
+            ESP_LOGW(TAG, "ppa yuv420+rot submit: %s", esp_err_to_name(err));
+            /* PPA didn't run — leave pending=false so next iter doesn't
+             * wait on a sem that will never be given. */
             return err;
         }
-        int64_t t_ppa_end = esp_timer_get_time();
+        s_ppa_pending = true;
+        s_pending_fb_idx = idx;
+        s_stag_idx ^= 1;
 
-        esp_cache_msync(s_fb[idx], out_buf_size,
-                        ESP_CACHE_MSYNC_FLAG_DIR_M2C |
-                        ESP_CACHE_MSYNC_FLAG_INVALIDATE);
-        aa_overlay_draw((uint16_t *)s_fb[idx]);
-        esp_cache_msync(s_fb[idx], out_buf_size,
-                        ESP_CACHE_MSYNC_FLAG_DIR_C2M);
-        int64_t t_overlay_end = esp_timer_get_time();
-
-        err = esp_lcd_panel_draw_bitmap(s_panel, 0, 0,
-                                        PANEL_NATIVE_W, PANEL_NATIVE_H,
-                                        s_fb[idx]);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "panel_draw_bitmap (yuv420+ppa): %s",
-                     esp_err_to_name(err));
-        }
-        int64_t t_draw_end = esp_timer_get_time();
-
+        /* Stat columns: imgfx = shuffle, ppa = wait+drain (≈0 in steady
+         * state), hud = overlay+cache, draw = panel_draw_bitmap of the
+         * PREVIOUS frame. */
         s_aa_stats.frames++;
         s_aa_stats.imgfx_us   += (uint64_t)(t_shuffle_end - t0);
-        s_aa_stats.ppa_us     += (uint64_t)(t_ppa_end     - t_shuffle_end);
-        s_aa_stats.overlay_us += (uint64_t)(t_overlay_end - t_ppa_end);
+        s_aa_stats.ppa_us     += 0;
+        s_aa_stats.overlay_us += (uint64_t)(t_overlay_end - t_shuffle_end);
         s_aa_stats.draw_us    += (uint64_t)(t_draw_end    - t_overlay_end);
         s_aa_stats.total_us   += (uint64_t)(t_draw_end    - t_total_start);
         aa_stats_log_once_per_second();
-        return err;
+        return ESP_OK;
     }
 #elif DISPLAY_CPU_YUV_BYPASS
     /* CPU path: take source Y plane (validated correct via dump) and
