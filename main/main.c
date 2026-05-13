@@ -279,7 +279,13 @@ void app_main(void)
 
     /* NimBLE host on top of C6's BT controller (ESP-Hosted VHCI). Starts
      * advertising NUS so VESC Tool can connect over BLE and talk to the
-     * VESC controller via the CAN bridge in vesc_packet_dispatch. */
+     * VESC controller via the CAN bridge in vesc_packet_dispatch.
+     *
+     * ble_nus_init brings up the outbound ring buffer + TX task BEFORE
+     * NimBLE so the first reply that lands during VESC Tool's handshake
+     * already has somewhere to queue without back-pressuring the CAN
+     * task. */
+    ble_nus_init();
     if (ble_host_init() != ESP_OK) {
         ESP_LOGW(TAG, "BLE host init failed — VESC Tool over BLE unavailable");
     }

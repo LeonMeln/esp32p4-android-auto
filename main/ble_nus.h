@@ -14,6 +14,12 @@ extern "C" {
  *   TX     : 6E400003-...   (head unit → phone, notify) */
 #define NUS_UUID_PREFIX_BE_BYTE 0x6E
 
+/* One-shot bring-up: allocates the outbound ring buffer and starts the
+ * NUS TX task. Call once before ble_host_init() so forward_response can
+ * enqueue from the CAN RX task without losing pending frames during
+ * VESC Tool's first read burst. Idempotent. */
+void ble_nus_init(void);
+
 /* Returns the GATT service definitions for ble_gatts_count_cfg /
  * ble_gatts_add_svcs. Pointer-to-array of ble_gatt_svc_def with a {0}
  * terminator. Stable for the lifetime of the program. */

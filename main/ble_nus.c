@@ -3,6 +3,9 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/ringbuf.h"
+#include "freertos/task.h"
 #include "host/ble_gatt.h"
 #include "host/ble_hs.h"
 #include "host/ble_hs_mbuf.h"
@@ -12,6 +15,28 @@
 #include "vesc_can/packet_parser.h"
 
 static const char *TAG = "ble_nus";
+
+/* Outbound queue for VESC responses. CAN's RX task pushes framed payloads
+ * here and returns immediately; a dedicated NimBLE-friendly task drains
+ * the buffer and notifies in MTU-sized chunks, retrying on transient
+ * BLE_HS_ENOMEM / EBUSY without backpressuring CAN.
+ *
+ * Why this exists: VESC Tool's "read mcconf" / firmware upload triggers
+ * a burst of 100+ CAN frames in ~100 ms, each producing one reassembled
+ * VESC packet up to ~512 bytes. With the previous synchronous path the
+ * CAN RX task called ble_gatts_notify_custom directly — NimBLE's mbuf
+ * pool emptied within the first few packets, returned BLE_HS_ENOMEM,
+ * and we just bailed and dropped the rest. VESC Tool then timed out
+ * and the central tore down the link.
+ *
+ * 8 KiB holds ~14 max-size framed packets; in practice each batch
+ * empties to BLE in 200-400 ms (depends on connection interval + MTU),
+ * so the queue is mostly idle. NOSPLIT keeps each framed packet atomic
+ * — the TX task pulls one full packet per receive and never interleaves
+ * chunks from different replies. */
+#define NUS_TX_RB_SIZE  8192
+static RingbufHandle_t s_tx_rb;
+static TaskHandle_t    s_tx_task;
 
 /* NimBLE stores UUID-128 in little-endian byte order (least-significant
  * byte first). The on-the-wire UUID 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
@@ -118,10 +143,119 @@ void ble_nus_on_connect(uint16_t conn_handle)
     ESP_LOGI(TAG, "peer connected, conn=%u", (unsigned)conn_handle);
 }
 
+/* Drop everything currently queued for a peer that just left. Otherwise
+ * the next connect would receive stale frames meant for the previous
+ * session — VESC Tool would mis-parse them as responses to its first
+ * handshake and disconnect with "version mismatch". */
+static void tx_rb_drain(void)
+{
+    if (!s_tx_rb) return;
+    while (1) {
+        size_t sz = 0;
+        void *p = xRingbufferReceive(s_tx_rb, &sz, 0);
+        if (!p) break;
+        vRingbufferReturnItem(s_tx_rb, p);
+    }
+}
+
 void ble_nus_on_disconnect(void)
 {
     ESP_LOGI(TAG, "peer disconnected");
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+    tx_rb_drain();
+}
+
+/* Notify one chunk, retrying on transient NimBLE pool pressure. Returns
+ * 0 on success, NimBLE rc on permanent failure (peer gone, etc.). The
+ * mbuf is consumed by NimBLE on success AND on error — caller must not
+ * touch it after this returns. */
+static int notify_chunk_with_retry(const uint8_t *data, uint16_t len)
+{
+    /* Up to ~250 ms of retries — covers a full burst of MTU-sized
+     * packets emptying onto the link. 5 ms is one connection interval
+     * at 7.5 ms minimum; longer waits don't buy anything because the
+     * controller drains mbufs at the link-layer rate, not faster. */
+    const int max_attempts = 50;
+    for (int i = 0; i < max_attempts; i++) {
+        if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE) return BLE_HS_ENOTCONN;
+        struct os_mbuf *txom = ble_hs_mbuf_from_flat(data, len);
+        if (!txom) {
+            /* mbuf pool empty — wait for controller to drain. */
+            vTaskDelay(pdMS_TO_TICKS(5));
+            continue;
+        }
+        int rc = ble_gatts_notify_custom(s_conn_handle, s_tx_val_handle, txom);
+        if (rc == 0) return 0;
+        /* BLE_HS_ENOMEM (6) is the typical "queue full" reply from
+         * NimBLE; treat ESTALLED / EBUSY / EAGAIN identically — they
+         * all clear once the controller transmits the next interval. */
+        if (rc == BLE_HS_ENOMEM || rc == BLE_HS_EBUSY) {
+            vTaskDelay(pdMS_TO_TICKS(5));
+            continue;
+        }
+        /* Anything else (ENOTCONN, EINVAL, …) is permanent for this
+         * frame — bail out so the TX task can move on. */
+        return rc;
+    }
+    return BLE_HS_ETIMEOUT;
+}
+
+static void nus_tx_task(void *arg)
+{
+    (void)arg;
+    while (1) {
+        size_t framed_len = 0;
+        uint8_t *framed = (uint8_t *)xRingbufferReceive(s_tx_rb, &framed_len,
+                                                        portMAX_DELAY);
+        if (!framed) continue;
+
+        /* Snapshot the peer state under no lock — s_conn_handle is a
+         * plain word write from the GAP task and a 32-bit read here is
+         * atomic on Xtensa. If the peer is gone, drop the item. */
+        if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE || s_tx_val_handle == 0) {
+            vRingbufferReturnItem(s_tx_rb, framed);
+            continue;
+        }
+
+        /* ble_att_mtu() returns 23 (BLE_ATT_MTU_DFLT) until MTU exchange
+         * completes — re-read every batch so once VESC Tool negotiates
+         * 247-byte MTU we instantly switch to bigger chunks. */
+        uint16_t mtu = ble_att_mtu(s_conn_handle);
+        if (mtu < 23) mtu = 23;
+        uint16_t chunk = (uint16_t)(mtu - 3);
+
+        size_t off = 0;
+        while (off < framed_len) {
+            uint16_t this_chunk = (uint16_t)((framed_len - off > chunk)
+                                                 ? chunk : (framed_len - off));
+            int rc = notify_chunk_with_retry(framed + off, this_chunk);
+            if (rc != 0) {
+                ESP_LOGW(TAG, "notify rc=%d off=%u/%u — dropping rest of frame",
+                         rc, (unsigned)off, (unsigned)framed_len);
+                break;
+            }
+            off += this_chunk;
+        }
+
+        vRingbufferReturnItem(s_tx_rb, framed);
+    }
+}
+
+void ble_nus_init(void)
+{
+    if (s_tx_rb) return;
+    s_tx_rb = xRingbufferCreate(NUS_TX_RB_SIZE, RINGBUF_TYPE_NOSPLIT);
+    if (!s_tx_rb) {
+        ESP_LOGE(TAG, "tx ringbuf alloc failed (%d B)", NUS_TX_RB_SIZE);
+        return;
+    }
+    /* prio 5 — same band as the CAN RX task; we don't want this to
+     * preempt the system but it must drain faster than 10 ms granularity
+     * to keep VESC Tool's parser happy. Pinned to core 0 so all BLE work
+     * stays on one core (NimBLE host task is also core 0). */
+    xTaskCreatePinnedToCore(nus_tx_task, "ble_nus_tx", 4096, NULL, 5,
+                            &s_tx_task, 0);
+    ESP_LOGI(TAG, "tx task up (rb=%d B)", NUS_TX_RB_SIZE);
 }
 
 void ble_nus_forward_response(const uint8_t *data, uint16_t len)
@@ -130,6 +264,10 @@ void ble_nus_forward_response(const uint8_t *data, uint16_t len)
         return;
     }
     if (len == 0) return;
+    if (!s_tx_rb) {
+        ESP_LOGW(TAG, "forward called before init — dropping %u B", len);
+        return;
+    }
 
     /* Frame the payload (start byte + len + crc + end). 600 covers the
      * 512-byte parser cap + framing. */
@@ -137,28 +275,13 @@ void ble_nus_forward_response(const uint8_t *data, uint16_t len)
     uint16_t framed_len = packet_build_frame(data, len, framed, sizeof(framed));
     if (framed_len == 0) return;
 
-    /* Negotiated MTU minus the 3-byte ATT notify header is the per-PDU
-     * payload limit. ble_att_mtu() returns 23 (BLE_ATT_MTU_DFLT) until
-     * MTU exchange completes. */
-    uint16_t mtu = ble_att_mtu(s_conn_handle);
-    if (mtu < 23) mtu = 23;
-    uint16_t chunk = (uint16_t)(mtu - 3);
-
-    uint16_t off = 0;
-    while (off < framed_len) {
-        uint16_t this_chunk = (uint16_t)((framed_len - off > chunk)
-                                             ? chunk : (framed_len - off));
-        struct os_mbuf *txom = ble_hs_mbuf_from_flat(framed + off, this_chunk);
-        if (!txom) {
-            ESP_LOGW(TAG, "mbuf_from_flat OOM at off=%u", (unsigned)off);
-            return;
-        }
-        int rc = ble_gatts_notify_custom(s_conn_handle, s_tx_val_handle, txom);
-        if (rc != 0) {
-            ESP_LOGW(TAG, "notify_custom rc=%d at off=%u", rc, (unsigned)off);
-            /* On error mbuf is freed by NimBLE — bail. */
-            return;
-        }
-        off += this_chunk;
+    /* 10 ms timeout — keeps the CAN RX task moving even if BLE is
+     * completely stuck; one lost frame is better than missing all the
+     * subsequent CAN traffic on the bus. Most calls return instantly
+     * because the ringbuf has plenty of slack. */
+    BaseType_t ok = xRingbufferSend(s_tx_rb, framed, framed_len,
+                                    pdMS_TO_TICKS(10));
+    if (ok != pdTRUE) {
+        ESP_LOGW(TAG, "tx ringbuf full — dropping %u B reply", framed_len);
     }
 }
