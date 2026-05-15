@@ -21,7 +21,7 @@ esp_err_t display_init(void)
     bsp_display_cfg_t cfg = {
         .lv_adapter_cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG(),
         .rotation = ESP_LV_ADAPTER_ROTATE_90,
-        .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,
+        .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_DOUBLE_FULL,
     };
     /* Pin the LVGL worker to core 0. The H.264 decoder library spawns a
      * helper task at priority 17 pinned to core 1 (CONFIG_ESP_H264_DUAL_TASK*)
