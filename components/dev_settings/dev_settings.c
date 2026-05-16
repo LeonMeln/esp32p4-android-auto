@@ -1,6 +1,8 @@
 #include "dev_settings.h"
 
 #include <string.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include "esp_log.h"
 #include "nvs.h"
@@ -125,6 +127,16 @@ void settings_init(void) {
     ESP_LOGI(TAG, "loaded: can=%d kbps brightness=%u%% target_id=%u ctrl_id=%u",
              (int)s_cache.can_speed, s_cache.brightness,
              s_cache.target_vesc_id, s_cache.controller_id);
+
+    /* Critical for the vbat experiment: this is what we read after a
+     * USB-unplug+replug. If it's non-zero, the LP_TIMER kept ticking on
+     * the CR2032 → VBAT poke worked. If it's 0, time was lost. */
+    uint32_t sod = (uint32_t)time(NULL) % 86400u;
+    ESP_LOGW(TAG, "clock at boot: %02u:%02u:%02u (time(NULL)=%lld)",
+             (unsigned)(sod / 3600u),
+             (unsigned)((sod / 60u) % 60u),
+             (unsigned)(sod % 60u),
+             (long long)time(NULL));
 }
 
 /* ---------------- getters ---------------- */
@@ -333,6 +345,20 @@ void settings_persist_power_max_kw(void) {
     float v = s_cache.power_max_kw;
     nvs_set_blob(h, "pwr_max", &v, sizeof(v));
     commit(h);
+}
+
+/* ---------------- wall clock ----------------
+ * Pure RTC: settimeofday() on set, time(NULL) on read. Persistence
+ * across USB-unplug depends on the vbat_experiment poke (see main.c). */
+
+uint32_t settings_get_clock_secs_of_day(void) {
+    return (uint32_t)time(NULL) % 86400u;
+}
+
+void settings_set_clock_secs_of_day(uint32_t secs_of_day) {
+    secs_of_day %= 86400u;
+    struct timeval tv = { .tv_sec = (time_t)secs_of_day, .tv_usec = 0 };
+    settimeofday(&tv, NULL);
 }
 
 void settings_register_can_speed_cb(settings_can_speed_cb_t cb)         { s_can_speed_cb     = cb; }

@@ -69,6 +69,8 @@ typedef struct num_field {
 static num_field_t s_target_id_field;
 static num_field_t s_battery_capacity_field;
 static num_field_t s_power_max_field;
+static num_field_t s_clock_hour_field;
+static num_field_t s_clock_min_field;
 
 static void num_field_refresh(num_field_t *f) {
     if (!f->label) return;
@@ -177,6 +179,12 @@ static lv_obj_t *settings_motor_poles_minus_btn = NULL;
 static lv_obj_t *settings_power_max_label = NULL;
 static lv_obj_t *settings_power_max_plus_btn = NULL;
 static lv_obj_t *settings_power_max_minus_btn = NULL;
+static lv_obj_t *settings_clock_heading_label = NULL;
+static lv_obj_t *settings_clock_h_plus_btn = NULL;
+static lv_obj_t *settings_clock_h_minus_btn = NULL;
+static lv_obj_t *settings_clock_m_plus_btn = NULL;
+static lv_obj_t *settings_clock_m_minus_btn = NULL;
+static lv_obj_t *settings_clock_colon_label = NULL;
 static lv_obj_t *settings_reset_button = NULL;
 static lv_obj_t *settings_info_label = NULL;
 
@@ -744,6 +752,17 @@ void update_uptime(uint32_t uptime)
     lv_label_set_text(guider_ui.dashboard_uptime_text,text);
 }
 
+void update_cur_time(int hour, int minute, int second)
+{
+    if (!guider_ui.dashboard_cur_time_label) return;
+    static int old_h = -1, old_m = -1, old_s = -1;
+    if (hour == old_h && minute == old_m && second == old_s) return;
+    old_h = hour; old_m = minute; old_s = second;
+    char text[12];
+    snprintf(text, sizeof(text), "%02d:%02d:%02d", hour, minute, second);
+    lv_label_set_text(guider_ui.dashboard_cur_time_label, text);
+}
+
 void update_mode_text(uint8_t mode)
 {
     static uint8_t old_mode = -1;
@@ -1032,6 +1051,54 @@ static void power_max_plus_btn_event_cb(lv_event_t *e) {
 
 static void power_max_minus_btn_event_cb(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED) num_field_dec(&s_power_max_field);
+}
+
+static void clock_apply_from_fields(void) {
+    uint32_t cur_secs_of_day = settings_wrapper_get_clock_secs_of_day();
+    int      cur_s = (int)(cur_secs_of_day % 60u);
+    uint32_t new_secs_of_day =
+        (uint32_t)s_clock_hour_field.value * 3600u +
+        (uint32_t)s_clock_min_field.value  * 60u   +
+        (uint32_t)cur_s;
+    settings_wrapper_set_clock_secs_of_day(new_secs_of_day);
+}
+
+static void clock_hour_on_change(num_field_t *f) {
+    (void)f;
+    clock_apply_from_fields();
+}
+
+static void clock_min_on_change(num_field_t *f) {
+    (void)f;
+    clock_apply_from_fields();
+}
+
+static void clock_h_plus_btn_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    int v = s_clock_hour_field.value + 1;
+    if (v > 23) v = 0;       /* wrap 23→00 */
+    num_field_set(&s_clock_hour_field, v);
+}
+
+static void clock_h_minus_btn_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    int v = s_clock_hour_field.value - 1;
+    if (v < 0) v = 23;       /* wrap 00→23 */
+    num_field_set(&s_clock_hour_field, v);
+}
+
+static void clock_m_plus_btn_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    int v = s_clock_min_field.value + 1;
+    if (v > 59) v = 0;
+    num_field_set(&s_clock_min_field, v);
+}
+
+static void clock_m_minus_btn_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    int v = s_clock_min_field.value - 1;
+    if (v < 0) v = 59;
+    num_field_set(&s_clock_min_field, v);
 }
 
 // Timer callback for checking limits response
@@ -1483,6 +1550,51 @@ void settings_ui_init(lv_ui *ui) {
     settings_value_label_init(ui->settings, &s_power_max_field, y_pos + 5, 0xffa500);
     settings_power_max_plus_btn = settings_step_btn_create(ui->settings,
         SETTINGS_PLUS_X, y_pos + 5, "+", 0x00a9ff, power_max_plus_btn_event_cb);
+    y_pos += SETTINGS_ROW_H;
+
+    // ========== Wall clock (Time of day) ==========
+    uint32_t clock_now = settings_wrapper_get_clock_secs_of_day();
+    int      clock_h_now = (int)(clock_now / 3600u);
+    int      clock_m_now = (int)((clock_now / 60u) % 60u);
+    /* Hours cluster — placed in the gap between heading and the minutes
+     * cluster on the right. Mirrors the SETTINGS_*_X spacing pattern but
+     * shifted ~250 px to the left so the row fits in 800 px. */
+    enum { CLK_H_MINUS_X = 300, CLK_H_VAL_X = 370, CLK_H_PLUS_X = 470 };
+    settings_clock_heading_label = settings_heading_create(ui->settings, y_pos, "Time:");
+    s_clock_hour_field = (num_field_t){
+        .value = clock_h_now, .min = 0, .max = 23, .step = 1, .decimals = 0,
+        .on_change = clock_hour_on_change,
+    };
+    settings_clock_h_minus_btn = settings_step_btn_create(ui->settings,
+        CLK_H_MINUS_X, y_pos + 5, "-", 0xff4444, clock_h_minus_btn_event_cb);
+    s_clock_hour_field.label = lv_label_create(ui->settings);
+    lv_obj_set_pos(s_clock_hour_field.label, CLK_H_VAL_X, y_pos + 5);
+    lv_obj_set_size(s_clock_hour_field.label, SETTINGS_VAL_W, 50);
+    lv_obj_set_style_text_color(s_clock_hour_field.label, lv_color_hex(0xB6FF2E), 0);
+    lv_obj_set_style_text_font(s_clock_hour_field.label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_align(s_clock_hour_field.label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_pad_top(s_clock_hour_field.label, 11, 0);
+    num_field_refresh(&s_clock_hour_field);
+    settings_clock_h_plus_btn = settings_step_btn_create(ui->settings,
+        CLK_H_PLUS_X, y_pos + 5, "+", 0x00a9ff, clock_h_plus_btn_event_cb);
+
+    /* ':' separator between H and M clusters. */
+    settings_clock_colon_label = lv_label_create(ui->settings);
+    lv_label_set_text(settings_clock_colon_label, ":");
+    lv_obj_set_pos(settings_clock_colon_label, 537, y_pos + 16);
+    lv_obj_set_style_text_color(settings_clock_colon_label, lv_color_hex(0xB6FF2E), 0);
+    lv_obj_set_style_text_font(settings_clock_colon_label, &lv_font_montserrat_24, 0);
+
+    /* Minutes cluster — same right-edge anchors used by the other rows. */
+    s_clock_min_field = (num_field_t){
+        .value = clock_m_now, .min = 0, .max = 59, .step = 1, .decimals = 0,
+        .on_change = clock_min_on_change,
+    };
+    settings_clock_m_minus_btn = settings_step_btn_create(ui->settings,
+        SETTINGS_MINUS_X, y_pos + 5, "-", 0xff4444, clock_m_minus_btn_event_cb);
+    settings_value_label_init(ui->settings, &s_clock_min_field, y_pos + 5, 0xB6FF2E);
+    settings_clock_m_plus_btn = settings_step_btn_create(ui->settings,
+        SETTINGS_PLUS_X, y_pos + 5, "+", 0x00a9ff, clock_m_plus_btn_event_cb);
     y_pos += SETTINGS_ROW_H;
 
     /*

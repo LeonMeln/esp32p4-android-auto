@@ -7,6 +7,7 @@
 #include "settings_wrapper.h"
 #include "lv_conf.h"
 #include <stdio.h>
+#include <time.h>
 
 // Determine if we're running in simulator using LVGL's flag
 #ifndef LV_REALDEVICE
@@ -33,6 +34,7 @@ static struct {
     uint16_t wheel_diameter_mm;
     uint8_t motor_poles;
     float power_max_kw;
+    uint32_t clock_offset_secs;
 } sim_settings = {
     .target_vesc_id = 10,
     .can_speed_index = 3,  // 1000 kbps
@@ -44,6 +46,7 @@ static struct {
     .wheel_diameter_mm = 200,  // 200mm default
     .motor_poles = 7,  // Standard for VESC motors
     .power_max_kw = 4.5f,
+    .clock_offset_secs = 0,
 };
 #endif
 
@@ -328,6 +331,25 @@ void settings_wrapper_apply_restart(void) {
      * called us has a chance to unlock the display too. */
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_restart();
+#endif
+}
+
+uint32_t settings_wrapper_get_clock_secs_of_day(void) {
+#if SIMULATOR_MODE
+    uint32_t now = (uint32_t)time(NULL);
+    return (now + sim_settings.clock_offset_secs) % 86400u;
+#else
+    return settings_get_clock_secs_of_day();
+#endif
+}
+
+void settings_wrapper_set_clock_secs_of_day(uint32_t secs_of_day) {
+#if SIMULATOR_MODE
+    secs_of_day %= 86400u;
+    uint32_t now = (uint32_t)time(NULL);
+    sim_settings.clock_offset_secs = (secs_of_day - now) % 86400u;
+#else
+    settings_set_clock_secs_of_day(secs_of_day);
 #endif
 }
 

@@ -1,5 +1,7 @@
 #include "vesc_ui_updater.h"
 
+#include <time.h>
+
 #include "ble_host.h"
 #include "bsp/esp-bsp.h"
 #include "dev_settings.h"
@@ -174,6 +176,13 @@ static void updater_lv_timer_cb(lv_timer_t *t)
      * cockpit_demo_tick no longer touches it, so no writer conflict.
      * update_ble_status dedups internally. */
     update_ble_status(ble_host_is_connected());
+
+    /* Wall-clock label — RTC-only (no NVS fallback). Whether time(NULL)
+     * survives USB-unplug depends on the vbat_experiment poke. */
+    uint32_t sod = settings_get_clock_secs_of_day();
+    update_cur_time((int)(sod / 3600u),
+                    (int)((sod / 60u) % 60u),
+                    (int)(sod % 60u));
 
     /* Demo mode (Settings → Demo mode) drives the rest of the setters
      * from cockpit_demo_tick. Skip the RT pump so it doesn't overwrite

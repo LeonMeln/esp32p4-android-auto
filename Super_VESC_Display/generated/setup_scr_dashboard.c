@@ -57,7 +57,7 @@ void setup_scr_dashboard(lv_ui *ui)
     ui->dashboard_status_vesc = lv_label_create(ui->dashboard);
     lv_label_set_text(ui->dashboard_status_vesc, "VESC");
     lv_label_set_long_mode(ui->dashboard_status_vesc, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->dashboard_status_vesc, 16, 10);
+    lv_obj_set_pos(ui->dashboard_status_vesc, 8, 7);
     lv_obj_set_size(ui->dashboard_status_vesc, 58, 30);
 
     //Write style for dashboard_status_vesc, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
@@ -78,9 +78,9 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_mode_text
     ui->dashboard_mode_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_mode_text, "");
+    lv_label_set_text(ui->dashboard_mode_text, "MODE");
     lv_label_set_long_mode(ui->dashboard_mode_text, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->dashboard_mode_text, 74, 10);
+    lv_obj_set_pos(ui->dashboard_mode_text, 80, 7);
     lv_obj_set_size(ui->dashboard_mode_text, 90, 30);
 
     //Write style for dashboard_mode_text, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
@@ -101,9 +101,9 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_uptime_text
     ui->dashboard_uptime_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_uptime_text, "00:42:18");
+    lv_label_set_text(ui->dashboard_uptime_text, "--:--:--");
     lv_label_set_long_mode(ui->dashboard_uptime_text, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->dashboard_uptime_text, 187, 10);
+    lv_obj_set_pos(ui->dashboard_uptime_text, 180, 7);
     lv_obj_set_size(ui->dashboard_uptime_text, 80, 30);
 
     //Write style for dashboard_uptime_text, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
@@ -126,7 +126,7 @@ void setup_scr_dashboard(lv_ui *ui)
     ui->dashboard_status_bt = lv_label_create(ui->dashboard);
     lv_label_set_text(ui->dashboard_status_bt, "BT");
     lv_label_set_long_mode(ui->dashboard_status_bt, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->dashboard_status_bt, 740, 10);
+    lv_obj_set_pos(ui->dashboard_status_bt, 740, 7);
     lv_obj_set_size(ui->dashboard_status_bt, 40, 30);
 
     //Write style for dashboard_status_bt, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
@@ -195,7 +195,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_Battery_proc_text
     ui->dashboard_Battery_proc_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_Battery_proc_text, "68");
+    lv_label_set_text(ui->dashboard_Battery_proc_text, "--");
     lv_label_set_long_mode(ui->dashboard_Battery_proc_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_Battery_proc_text, 20, 73);
     lv_obj_set_size(ui->dashboard_Battery_proc_text, 90, 70);
@@ -614,7 +614,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_Range_text
     ui->dashboard_Range_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_Range_text, "38 KM");
+    lv_label_set_text(ui->dashboard_Range_text, "-- KM");
     lv_label_set_long_mode(ui->dashboard_Range_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_Range_text, 80, 380);
     lv_obj_set_size(ui->dashboard_Range_text, 84, 30);
@@ -660,7 +660,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_Speed_text
     ui->dashboard_Speed_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_Speed_text, "32");
+    lv_label_set_text(ui->dashboard_Speed_text, "--");
     lv_label_set_long_mode(ui->dashboard_Speed_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_Speed_text, 180, 70);
     lv_obj_set_size(ui->dashboard_Speed_text, 440, 224);
@@ -1091,7 +1091,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_power_value
     ui->dashboard_power_value = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_power_value, "1.0");
+    lv_label_set_text(ui->dashboard_power_value, "-.-");
     lv_label_set_long_mode(ui->dashboard_power_value, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_power_value, 610, 73);
     lv_obj_set_size(ui->dashboard_power_value, 112, 70);
@@ -1137,7 +1137,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_Current_text
     ui->dashboard_Current_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_Current_text, "18.4 A");
+    lv_label_set_text(ui->dashboard_Current_text, "--.- A");
     lv_label_set_long_mode(ui->dashboard_Current_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_Current_text, 636, 140);
     lv_obj_set_size(ui->dashboard_Current_text, 144, 30);
@@ -1533,7 +1533,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_power_max_val
     ui->dashboard_power_max_val = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_power_max_val, "4.5 KW");
+    lv_label_set_text(ui->dashboard_power_max_val, "-.- KW");
     lv_label_set_long_mode(ui->dashboard_power_max_val, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_power_max_val, 696, 380);
     lv_obj_set_size(ui->dashboard_power_max_val, 84, 30);
@@ -1729,7 +1729,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_TRIP_text
     ui->dashboard_TRIP_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_TRIP_text, "14.2");
+    lv_label_set_text(ui->dashboard_TRIP_text, "--.-");
     lv_label_set_long_mode(ui->dashboard_TRIP_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_TRIP_text, 158, 432);
     lv_obj_set_size(ui->dashboard_TRIP_text, 100, 60);
@@ -1798,7 +1798,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_odo_text
     ui->dashboard_odo_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_odo_text, "4128");
+    lv_label_set_text(ui->dashboard_odo_text, "----");
     lv_label_set_long_mode(ui->dashboard_odo_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_odo_text, 321, 432);
     lv_obj_set_size(ui->dashboard_odo_text, 100, 60);
@@ -1867,7 +1867,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_temp_mot_text
     ui->dashboard_temp_mot_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_temp_mot_text, "62");
+    lv_label_set_text(ui->dashboard_temp_mot_text, "--");
     lv_label_set_long_mode(ui->dashboard_temp_mot_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_temp_mot_text, 479, 432);
     lv_obj_set_size(ui->dashboard_temp_mot_text, 100, 60);
@@ -1936,7 +1936,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_temp_esc_text
     ui->dashboard_temp_esc_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_temp_esc_text, "48");
+    lv_label_set_text(ui->dashboard_temp_esc_text, "--");
     lv_label_set_long_mode(ui->dashboard_temp_esc_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_temp_esc_text, 637, 432);
     lv_obj_set_size(ui->dashboard_temp_esc_text, 100, 60);
@@ -2093,7 +2093,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_Ah_text
     ui->dashboard_Ah_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_Ah_text, "14.2 Ah");
+    lv_label_set_text(ui->dashboard_Ah_text, "--.- Ah");
     lv_label_set_long_mode(ui->dashboard_Ah_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_Ah_text, 20, 140);
     lv_obj_set_size(ui->dashboard_Ah_text, 130, 27);
@@ -2116,7 +2116,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_Speed_cc_text
     ui->dashboard_Speed_cc_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_Speed_cc_text, "32");
+    lv_label_set_text(ui->dashboard_Speed_cc_text, "--");
     lv_label_set_long_mode(ui->dashboard_Speed_cc_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_Speed_cc_text, 550, 90);
     lv_obj_set_size(ui->dashboard_Speed_cc_text, 60, 70);
@@ -2141,7 +2141,7 @@ void setup_scr_dashboard(lv_ui *ui)
     ui->dashboard_Settings_text = lv_label_create(ui->dashboard);
     lv_label_set_text(ui->dashboard_Settings_text, "SETTINGS");
     lv_label_set_long_mode(ui->dashboard_Settings_text, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->dashboard_Settings_text, 616, 10);
+    lv_obj_set_pos(ui->dashboard_Settings_text, 616, 7);
     lv_obj_set_size(ui->dashboard_Settings_text, 109, 30);
     lv_obj_add_flag(ui->dashboard_Settings_text, LV_OBJ_FLAG_CLICKABLE);
 
@@ -2209,7 +2209,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_Voltage_text
     ui->dashboard_Voltage_text = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_Voltage_text, "14.2");
+    lv_label_set_text(ui->dashboard_Voltage_text, "--.-");
     lv_label_set_long_mode(ui->dashboard_Voltage_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_Voltage_text, 0, 432);
     lv_obj_set_size(ui->dashboard_Voltage_text, 100, 60);
@@ -2232,7 +2232,7 @@ void setup_scr_dashboard(lv_ui *ui)
 
     //Write codes dashboard_col_voltage_label
     ui->dashboard_col_voltage_label = lv_label_create(ui->dashboard);
-    lv_label_set_text(ui->dashboard_col_voltage_label, "TRIP");
+    lv_label_set_text(ui->dashboard_col_voltage_label, "VOLTAGE\n");
     lv_label_set_long_mode(ui->dashboard_col_voltage_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->dashboard_col_voltage_label, 0, 405);
     lv_obj_set_size(ui->dashboard_col_voltage_label, 160, 18);
@@ -2252,6 +2252,29 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_pad_bottom(ui->dashboard_col_voltage_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_pad_left(ui->dashboard_col_voltage_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(ui->dashboard_col_voltage_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+
+    //Write codes dashboard_cur_time_label
+    ui->dashboard_cur_time_label = lv_label_create(ui->dashboard);
+    lv_label_set_text(ui->dashboard_cur_time_label, "--:--:--");
+    lv_label_set_long_mode(ui->dashboard_cur_time_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(ui->dashboard_cur_time_label, 520, 7);
+    lv_obj_set_size(ui->dashboard_cur_time_label, 80, 30);
+
+    //Write style for dashboard_cur_time_label, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    lv_obj_set_style_border_width(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui->dashboard_cur_time_label, lv_color_hex(0xB6FF2E), LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui->dashboard_cur_time_label, &lv_font_montserratMedium_18, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui->dashboard_cur_time_label, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_letter_space(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_line_space(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui->dashboard_cur_time_label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(ui->dashboard_cur_time_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //The custom code of dashboard.
 

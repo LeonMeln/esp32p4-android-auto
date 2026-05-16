@@ -37,6 +37,13 @@ uint8_t              settings_get_motor_poles(void);
 float                settings_get_power_max_kw(void);
 bool                 settings_get_vesc_emulator(void);
 
+/* Wall-clock API. RTC-only — relies on the vbat_experiment poke in
+ * main.c to keep LP domain alive on USB-unplug via the CR2032 on H8.
+ * If that experiment doesn't pan out on this silicon, time(NULL)
+ * resets to 0 on every cold boot. */
+uint32_t             settings_get_clock_secs_of_day(void);
+void                 settings_set_clock_secs_of_day(uint32_t secs_of_day);
+
 void settings_set_target_vesc_id(uint8_t id);
 void settings_set_can_speed(can_speed_t speed);
 void settings_set_screen_brightness(uint8_t brightness);

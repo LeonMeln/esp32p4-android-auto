@@ -31,6 +31,7 @@ void update_battery_voltage(float battery_voltage);
 void update_odometer(float odometer);
 void update_fps(int fps);
 void update_uptime(uint32_t uptime);
+void update_cur_time(int hour, int minute, int second);
 void update_ble_status(bool connected);
 void update_esc_connection_status(bool connected);
 void update_navigation_icon(const uint8_t *img_data, uint32_t data_size, uint16_t width, uint16_t height, lv_img_cf_t color_format);
