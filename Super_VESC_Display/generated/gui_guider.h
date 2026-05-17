@@ -109,7 +109,7 @@ typedef struct
 	lv_obj_t *dashboard_Speed_cc_text;
 	lv_obj_t *dashboard_Settings_text;
 	lv_obj_t *dashboard_song_title_label;
-	lv_obj_t *dashboard_label_3;
+	lv_obj_t *dashboard_col_v_label;
 	lv_obj_t *dashboard_Voltage_text;
 	lv_obj_t *dashboard_col_voltage_label;
 	lv_obj_t *dashboard_cur_time_label;
@@ -146,18 +146,20 @@ void setup_scr_settings(lv_ui *ui);
 LV_IMG_DECLARE(_cruise_control_alpha_38x38);
 
 LV_FONT_DECLARE(lv_font_montserratMedium_16)
-LV_FONT_DECLARE(lv_font_montserratMedium_18)
+LV_FONT_DECLARE(lv_font_montserratMedium_24)
 LV_FONT_DECLARE(lv_font_Antonio_Regular_64)
 LV_FONT_DECLARE(lv_font_montserratMedium_22)
 LV_FONT_DECLARE(lv_font_montserratMedium_12)
 LV_FONT_DECLARE(lv_font_Antonio_Regular_220)
 LV_FONT_DECLARE(lv_font_montserratMedium_20)
+LV_FONT_DECLARE(lv_font_montserratMedium_26)
+LV_FONT_DECLARE(lv_font_montserratMedium_18)
 LV_FONT_DECLARE(lv_font_Antonio_Regular_40)
 LV_FONT_DECLARE(lv_font_montserratMedium_11)
 LV_FONT_DECLARE(lv_font_Antonio_Regular_32)
 LV_FONT_DECLARE(lv_font_Antonio_Regular_22)
+LV_FONT_DECLARE(lv_font_montserratMedium_25)
 LV_FONT_DECLARE(lv_font_Antonio_Regular_50)
-LV_FONT_DECLARE(lv_font_montserratMedium_24)
 
 
 #ifdef __cplusplus
