@@ -3,6 +3,7 @@
 #include <time.h>
 
 #include "ble_host.h"
+#include "config.h"
 #include "bsp/esp-bsp.h"
 #include "dev_settings.h"
 #include "esp_log.h"
@@ -177,12 +178,14 @@ static void updater_lv_timer_cb(lv_timer_t *t)
      * update_ble_status dedups internally. */
     update_ble_status(ble_host_is_connected());
 
+#if ENABLE_WALL_CLOCK
     /* Wall-clock label — RTC-only (no NVS fallback). Whether time(NULL)
-     * survives USB-unplug depends on the vbat_experiment poke. */
+     * survives USB-unplug depends on the vbat_routing poke. */
     uint32_t sod = settings_get_clock_secs_of_day();
     update_cur_time((int)(sod / 3600u),
                     (int)((sod / 60u) % 60u),
                     (int)(sod % 60u));
+#endif
 
     /* Demo mode (Settings → Demo mode) drives the rest of the setters
      * from cockpit_demo_tick. Skip the RT pump so it doesn't overwrite

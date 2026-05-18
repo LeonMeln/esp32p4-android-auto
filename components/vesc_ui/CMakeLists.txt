@@ -47,6 +47,12 @@ idf_component_register(
 # keep the build linkable until the vesc_app backend lands.
 target_compile_definitions(${COMPONENT_LIB} PRIVATE LV_REALDEVICE)
 
+# Mirror of main/config.h's ENABLE_WALL_CLOCK — vesc_ui can't include
+# main/config.h cleanly, so the flag is duplicated here. Must stay in
+# sync. When 0, custom_init hides dashboard_cur_time_label and the
+# Time row in Settings is skipped.
+target_compile_definitions(${COMPONENT_LIB} PRIVATE ENABLE_WALL_CLOCK=0)
+
 # Generated images use:
 #   #if defined(LV_LVGL_H_INCLUDE_SIMPLE)
 #   #include "lvgl.h"

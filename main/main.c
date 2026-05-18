@@ -190,12 +190,14 @@ void app_main(void)
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 
+#if ENABLE_WALL_CLOCK
     /* Arm the PMU so the LP domain runs in AUTO mode (falls through to
      * VBAT/CR2032 when main power collapses). Required for the wall-
      * clock on the dashboard to survive USB-unplug — without this poke,
      * a POR wipes the LP_TIMER and the boot_time epoch in LP_STORE2/3.
      * Has to run before anything else that touches PMU state. */
     vbat_routing_enable();
+#endif
 
     init_nvs();
     /* Settings cache is now ready for both the UI (settings_ui_init pulls

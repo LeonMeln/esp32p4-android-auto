@@ -41,3 +41,11 @@
                                      headphones instead of getting ack'd into the
                                      void on our head unit. */
 #define ENABLE_AUDIO_SYSTEM    1  /* UI beeps — gearhead requires this */
+
+/* Dashboard wall clock (cur_time_label + Time row in Settings + VBAT
+ * AUTO-mode routing for LP domain). Set to 0 if the CR2032 on H8 is
+ * draining too fast — disabling shuts off the LP-on-VBAT routing so
+ * the LP domain runs from VDDA only, eliminating any battery drain
+ * path through the chip. Coin cell still leaks ~30 µA via R52 → EN
+ * which is unavoidable in hardware. */
+#define ENABLE_WALL_CLOCK      0

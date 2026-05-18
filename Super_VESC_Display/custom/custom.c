@@ -395,6 +395,15 @@ void custom_init(lv_ui *ui)
         lv_slider_set_value(ui->dashboard_brightness_slider,
                             settings_wrapper_get_brightness(), LV_ANIM_OFF);
     }
+
+#if defined(ENABLE_WALL_CLOCK) && !ENABLE_WALL_CLOCK
+    /* Wall clock disabled at compile time (see main/config.h, mirrored
+     * in components/vesc_ui/CMakeLists.txt) — hide cur_time_label so
+     * the placeholder "00:42:18" doesn't sit on the dashboard. */
+    if (ui->dashboard_cur_time_label) {
+        lv_obj_add_flag(ui->dashboard_cur_time_label, LV_OBJ_FLAG_HIDDEN);
+    }
+#endif
 }
 
 /* 4 Hz tick (~250 ms). sinf() drives smooth value sweeps; every change goes
@@ -1573,6 +1582,7 @@ void settings_ui_init(lv_ui *ui) {
         SETTINGS_PLUS_X, y_pos + 5, "+", 0x00a9ff, power_max_plus_btn_event_cb);
     y_pos += SETTINGS_ROW_H;
 
+#if !defined(ENABLE_WALL_CLOCK) || ENABLE_WALL_CLOCK
     // ========== Wall clock (Time of day) ==========
     uint32_t clock_now = settings_wrapper_get_clock_secs_of_day();
     int      clock_h_now = (int)(clock_now / 3600u);
@@ -1617,6 +1627,7 @@ void settings_ui_init(lv_ui *ui) {
     settings_clock_m_plus_btn = settings_step_btn_create(ui->settings,
         SETTINGS_PLUS_X, y_pos + 5, "+", 0x00a9ff, clock_m_plus_btn_event_cb);
     y_pos += SETTINGS_ROW_H;
+#endif  /* ENABLE_WALL_CLOCK */
 
     /*
     // ========== VESC LIMITS SECTION ==========
