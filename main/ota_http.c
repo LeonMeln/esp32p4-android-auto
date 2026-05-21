@@ -9,13 +9,18 @@
 #include <string.h>
 
 #include "esp_app_desc.h"
+#include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "mbedtls/sha256.h"
+
+#include "ota_screen.h"
 
 static const char *TAG = "ota_http";
 static httpd_handle_t s_server;
@@ -181,57 +186,133 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
     ESP_LOGI(TAG, "OTA begin: %d bytes -> %s @ 0x%08" PRIx32,
              remaining, next->label, next->address);
 
-    esp_ota_handle_t handle = 0;
-    esp_err_t err = esp_ota_begin(next, remaining, &handle);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_begin: %s", esp_err_to_name(err));
+    /* On-screen progress. Idempotent init in case nothing else has shown
+     * the overlay yet. Title is set once at the start of the session. */
+    ota_screen_init();
+    ota_screen_set_title("Firmware update");
+    ota_screen_show("Receiving from browser");
+    ota_screen_set_status("");
+
+    /* Stage the full image in PSRAM first, then flush to flash in one
+     * concentrated pass. The previous flow interleaved recv -> esp_ota_write
+     * every 4 KiB; that meant ~150 seconds of esp_flash_*-induced cache
+     * disables while SDIO/WiFi RX was also active. Decoupling RX from
+     * flash writes:
+     *   - During RX (~150 s): only WiFi / SDIO traffic, no flash bus hits.
+     *   - After RX done: ~5-10 s tight loop of esp_ota_write from PSRAM,
+     *     no concurrent network or other big bus users.
+     * Diagnostic side benefit: if the verify glitch persists even with
+     * receive isolated from flash, then SDIO/WiFi isn't the suspect — the
+     * problem lives entirely in the final write+verify window. */
+    uint8_t *stage = heap_caps_malloc(remaining,
+                                      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!stage) {
+        ESP_LOGE(TAG, "PSRAM staging alloc %d bytes failed", remaining);
+        ota_screen_set_status_error("Out of memory");
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
-                            "esp_ota_begin failed");
+                            "psram staging alloc failed");
         return ESP_FAIL;
     }
+    ESP_LOGI(TAG, "staging buffer allocated in PSRAM @%p", stage);
 
-    char *buf = malloc(OTA_RX_BUF_SIZE);
-    if (!buf) {
-        esp_ota_abort(handle);
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "oom");
-        return ESP_FAIL;
-    }
+    /* SHA-256 of the received byte stream — logged at the end so the user
+     * can `shasum -a 256 build/esp32p4_android_auto.bin` locally and verify
+     * whether bytes arrived intact (TCP/HTTP) or got mangled on the wire. */
+    mbedtls_sha256_context sha;
+    mbedtls_sha256_init(&sha);
+    mbedtls_sha256_starts(&sha, 0);
 
+    int total = req->content_len;
     int written = 0;
     int next_log_at = 0x40000;  /* log every 256 KiB */
+    int next_ui_at  = 0;        /* refresh progress every ~64 KiB */
     while (remaining > 0) {
         int want = remaining < OTA_RX_BUF_SIZE ? remaining : OTA_RX_BUF_SIZE;
-        int n = httpd_req_recv(req, buf, want);
+        int n = httpd_req_recv(req, (char *)(stage + written), want);
         if (n == HTTPD_SOCK_ERR_TIMEOUT) continue;
         if (n <= 0) {
             ESP_LOGE(TAG, "recv error %d after %d/%d bytes",
                      n, written, written + remaining);
-            free(buf);
-            esp_ota_abort(handle);
+            ota_screen_set_status_error("Network error");
+            heap_caps_free(stage);
+            mbedtls_sha256_free(&sha);
             return ESP_FAIL;
         }
-        err = esp_ota_write(handle, buf, n);
+        mbedtls_sha256_update(&sha, stage + written, n);
+        written   += n;
+        remaining -= n;
+        if (written >= next_log_at) {
+            ESP_LOGI(TAG, "...%d bytes received", written);
+            next_log_at += 0x40000;
+        }
+        if (written >= next_ui_at) {
+            ota_screen_set_progress(written, total);
+            next_ui_at += 0x10000;  /* 64 KiB granularity is plenty smooth */
+        }
+    }
+    ota_screen_set_progress(total, total);
+
+    unsigned char digest[32];
+    mbedtls_sha256_finish(&sha, digest);
+    mbedtls_sha256_free(&sha);
+    char hex[65];
+    for (int i = 0; i < 32; i++) {
+        snprintf(hex + i * 2, 3, "%02x", digest[i]);
+    }
+    ESP_LOGI(TAG, "received %d / %d bytes, sha256=%s", written, total, hex);
+
+    /* Flush staged image to flash in one concentrated pass — no
+     * concurrent network or other big bus users at this point. The flash
+     * erase / program windows briefly stall the MIPI-DSI DMA fetching the
+     * PSRAM framebuffer, so the panel may flash cyan/blue while this runs.
+     * Warn the user so it doesn't look like a defect. */
+    ota_screen_show("Erasing flash — screen may flicker");
+    ota_screen_set_status("Don't power off");
+    ota_screen_set_progress(0, written);
+
+    esp_ota_handle_t handle = 0;
+    esp_err_t err = esp_ota_begin(next, written, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin: %s", esp_err_to_name(err));
+        ota_screen_set_status_error("Erase failed");
+        heap_caps_free(stage);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                            "esp_ota_begin failed");
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "flushing %d bytes to flash...", written);
+    ota_screen_show("Writing firmware — screen may flicker");
+    int64_t t_flush_us = esp_timer_get_time();
+    int next_write_ui_at = 0;
+    for (int off = 0; off < written; ) {
+        int chunk = (written - off) < OTA_RX_BUF_SIZE
+                    ? (written - off) : OTA_RX_BUF_SIZE;
+        err = esp_ota_write(handle, stage + off, chunk);
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "esp_ota_write @%d: %s",
-                     written, esp_err_to_name(err));
-            free(buf);
+            ESP_LOGE(TAG, "esp_ota_write @%d: %s", off, esp_err_to_name(err));
+            ota_screen_set_status_error("Write failed");
             esp_ota_abort(handle);
+            heap_caps_free(stage);
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
                                 "flash write failed");
             return ESP_FAIL;
         }
-        written   += n;
-        remaining -= n;
-        if (written >= next_log_at) {
-            ESP_LOGI(TAG, "...%d bytes", written);
-            next_log_at += 0x40000;
+        off += chunk;
+        if (off >= next_write_ui_at) {
+            ota_screen_set_progress(off, written);
+            next_write_ui_at += 0x40000;  /* 256 KiB cadence — write is fast */
         }
     }
-    free(buf);
+    heap_caps_free(stage);
+    ota_screen_set_progress(written, written);
+    ESP_LOGI(TAG, "flush done in %lld ms",
+             (esp_timer_get_time() - t_flush_us) / 1000);
 
+    ota_screen_show("Verifying");
     err = esp_ota_end(handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_end: %s", esp_err_to_name(err));
+        ota_screen_set_status_error("Verify failed");
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
                             "image verify failed");
         return ESP_FAIL;
@@ -239,11 +320,14 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
     err = esp_ota_set_boot_partition(next);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "set_boot_partition: %s", esp_err_to_name(err));
+        ota_screen_set_status_error("Commit failed");
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
                             "set_boot_partition failed");
         return ESP_FAIL;
     }
 
+    ota_screen_show("Rebooting...");
+    ota_screen_set_status("");
     ESP_LOGW(TAG, "OTA OK (%d bytes) -> %s, rebooting in 500 ms",
              written, next->label);
     httpd_resp_set_type(req, "text/plain");

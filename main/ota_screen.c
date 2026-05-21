@@ -126,6 +126,7 @@ void ota_screen_show(const char *subtitle)
         lv_obj_t *cur = lv_scr_act();
         if (parent_scr && parent_scr != cur) {
             s_prev_screen = cur;
+            ESP_LOGW(TAG, "show: lv_scr_load(parent=%p)", parent_scr);
             lv_scr_load(parent_scr);
         }
         bsp_display_unlock();
@@ -180,6 +181,7 @@ void ota_screen_hide(void)
     if (bsp_display_lock(200) == ESP_OK) {
         lv_obj_add_flag(s_root, LV_OBJ_FLAG_HIDDEN);
         if (s_prev_screen) {
+            ESP_LOGW(TAG, "hide: lv_scr_load(prev=%p)", s_prev_screen);
             lv_scr_load(s_prev_screen);
             s_prev_screen = NULL;
         }

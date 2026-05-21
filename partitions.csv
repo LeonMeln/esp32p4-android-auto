@@ -1,11 +1,20 @@
 # Name,     Type, SubType,  Offset,    Size
-# 32 MB flash, fully used: reserved 0x20000 up front (bootloader + NVS +
-# otadata + phy_init), then two equal-sized OTA slots filling the rest
-# (0x1FE0000 / 2 = 0xFF0000 ≈ 15.94 MB each). No free tail — if a SPIFFS
-# / data partition is ever needed, shrink the OTA slots back to 8 MB
-# each and reclaim the middle.
+# 32 MB flash. BOTH OTA slots must sit entirely below the 16 MB
+# boundary on ESP32-P4 — see espressif/esp-idf#18051: bootloader_mmap
+# returns stale cache lines for flash addresses ≥ 0x01000000 during
+# OTA verify, making esp_image_verify produce a deterministic-but-wrong
+# checksum even when the bytes on flash are correct.
+#
+# Layout:
+#   0x00000..0x12000   bootloader + nvs + otadata + phy_init
+#   0x20000..0x800000  ota_0   (~8 MB - 128 KB)
+#   0x800000..0xFE0000 ota_1   (~8 MB - 128 KB)
+#   0xFE0000..0x2000000 storage (SPIFFS, ~16.125 MB, allowed above 16 MB
+#                                  because the bug only affects app-image
+#                                  verify via bootloader_mmap)
 nvs,        data, nvs,      0x9000,    0x6000
 otadata,    data, ota,      0xf000,    0x2000
 phy_init,   data, phy,      0x11000,   0x1000
-ota_0,      app,  ota_0,    0x20000,   0xFF0000
-ota_1,      app,  ota_1,    0x1010000, 0xFF0000
+ota_0,      app,  ota_0,    0x20000,   0x7E0000
+ota_1,      app,  ota_1,    0x800000,  0x7E0000
+storage,    data, spiffs,   0xFE0000,  0x1020000
