@@ -63,12 +63,13 @@ Cycleway projects onto the same screen. No phone app required.
 | **VESC controller with CAN out** | VESC dashboard | Any rev with CAN. This is the whole point. |
 | **TJA1051 CAN transceiver** (prefer `T/3`) | VESC dashboard | 5V → 3.3V CAN level translation |
 | **DC-DC step-down 12V → 5V** (≥1 A) | VESC dashboard | Power from VESC / vehicle battery |
-| **D1 Mini ESP32-WROOM-32** | Android Auto bonus | Any USB-C ESP32 dev board with Classic BT. ESP32-P4 / C6 don't have BT Classic. ~$3. |
+| **ESP32-WROOM-32 module** (or any dev board with one) | Android Auto bonus | A bare WROOM-32 module soldered to the P4 board works fine — flip `BT_AGENT_OTA_ENABLED=y` in `idf.py menuconfig` and the P4 flashes it itself over the UART + RST/BOOT lines, no USB-to-serial needed. A D1 Mini ESP32 (or any USB-C ESP32 dev board with Classic BT) works too if you'd rather flash it directly. ESP32-P4 / C6 don't have BT Classic. ~$2–3. |
 | Jumper wires, USB-C cables | always | |
-| **CR2032 coin cell** on H8 footprint | optional | RTC backup (wall clock survives unplug) |
 
-If you don't care about Android Auto, you can drop the D1 Mini entirely —
-the dashboard works standalone.
+If you don't care about Android Auto, you can drop the WROOM entirely —
+the dashboard works standalone. With nothing connected on UART and
+`BT_AGENT_OTA_ENABLED` left at its default `n`, the P4 silently no-ops
+the BT path on every boot.
 
 ---
 
@@ -166,9 +167,18 @@ idf.py -p /dev/cu.usbmodem* flash monitor
 
 ### 2. (Optional) BT agent firmware — D1 Mini ESP32
 
-Only needed if you want the Android Auto bonus. You flash this **once**;
-after that the P4 reflashes it over UART whenever the embedded version is
-newer.
+Only needed if you want the Android Auto bonus. Two ways to do it:
+
+**A. Let the P4 flash it (best for a bare soldered WROOM).** Enable
+`BT_AGENT_OTA_ENABLED=y` in `idf.py menuconfig` (under
+*Project → BT Agent OTA*) and rebuild. On every boot the P4 checks the
+agent's `BT-VER:` line over UART and reflashes it from the firmware blob
+embedded in `components/bt_agent_fw/` if the version doesn't match. So a
+bare soldered WROOM-32 comes up fully provisioned the first time you power
+on. (Default is `n` — without it the BT path is a no-op even if a WROOM
+is wired up.)
+
+**B. Flash it yourself.** Plug a dev board with USB into your laptop:
 
 ```bash
 cd tools/bt_agent
