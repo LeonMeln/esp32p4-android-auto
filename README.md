@@ -24,8 +24,9 @@ power-on. Bonus: a VESC CAN dashboard overlay for e-skates / e-bikes / DIY EVs.
   no developer mode tricks. Phone pairs over Classic Bluetooth, AA launches
   itself.
 - 🎞️ **H.264 video decode** via `esp_h264` (SW decoder) + PPA-accelerated
-  YUV420 → RGB565 shuffle on the ESP32-P4. **640×480 @ ~30 fps** decoded,
-  upscaled to the panel's 800×480.
+  YUV420 → RGB565 shuffle on the ESP32-P4. **Native 800×480 @ ~10–15 fps**
+  on the panel (phone streams at ~30 fps; the SW decoder + display pipeline
+  is the bottleneck).
 - 👆 **Touch input** forwarded to the phone (GT911 capacitive controller).
 - 🔔 **System audio channel** (UI beeps / click feedback). Media / speech
   channels are deliberately dropped — phone keeps audio routing locally.
@@ -223,7 +224,7 @@ power-on auto-reconnects without prompts.
 
 | Area | Status | Notes |
 |---|---|---|
-| AA Wireless video (H.264, ~30 fps) | ✅ | 640×480 decode, upscaled to 800×480 via PPA |
+| AA Wireless video (H.264) | ✅ | Native 800×480 @ ~10–15 fps; bottleneck is SW decode + RGB shuffle |
 | Touch input forwarding | ✅ | GT911 → AA `TouchEvent` protobuf |
 | System audio channel | ✅ | UI beeps; required by Gearhead to project at all |
 | VESC CAN dashboard overlay | ✅ | Battery %, speed, temps, cruise indicator |
