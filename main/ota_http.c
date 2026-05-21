@@ -266,7 +266,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
      * erase / program windows briefly stall the MIPI-DSI DMA fetching the
      * PSRAM framebuffer, so the panel may flash cyan/blue while this runs.
      * Warn the user so it doesn't look like a defect. */
-    ota_screen_show("Erasing flash — screen may flicker");
+    ota_screen_show("Erasing flash - screen may flicker");
     ota_screen_set_status("Don't power off");
     ota_screen_set_progress(0, written);
 
@@ -281,7 +281,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
     ESP_LOGI(TAG, "flushing %d bytes to flash...", written);
-    ota_screen_show("Writing firmware — screen may flicker");
+    ota_screen_show("Writing firmware - screen may flicker");
     int64_t t_flush_us = esp_timer_get_time();
     int next_write_ui_at = 0;
     for (int off = 0; off < written; ) {

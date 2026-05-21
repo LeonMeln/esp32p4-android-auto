@@ -51,7 +51,6 @@ void port_start_app_hook(void)
 #include "h264_pipe.h"
 #include "idle_screen.h"
 #include "log_capture.h"
-#include "pixel_watch.h"
 #include "mdns_advertise.h"
 #include "ota_http.h"
 #include "ota_screen.h"
@@ -272,12 +271,6 @@ void app_main(void)
          * starts unconditionally so LVGL touch keeps working. */
         touch_input_set_gesture_cb(ui_mode_toggle);
         touch_input_start(NULL, NULL);
-
-        /* Diagnostic: poll pixel (0,0) of each LVGL framebuffer at 50 Hz
-         * and log if it ever turns light blue. Detects whether the random
-         * blue-flash during CAN activity is caused by software (FB gets
-         * written blue) or hardware (panel/DSI glitch — FB stays correct). */
-        pixel_watch_start();
     }
 
     /* VESC CAN bring-up. Independent from the AA pipeline — runs the

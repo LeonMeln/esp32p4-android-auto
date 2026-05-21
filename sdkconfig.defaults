@@ -55,7 +55,15 @@ CONFIG_ESP_HOSTED_SDIO_GPIO_RESET_SLAVE=54
 CONFIG_ESP_HOSTED_SDIO_OPTIMIZATION_RX_STREAMING_MODE=y
 CONFIG_ESP_HOSTED_SDIO_TX_Q_SIZE=20
 CONFIG_ESP_HOSTED_SDIO_RX_Q_SIZE=20
-CONFIG_ESP_HOSTED_USE_MEMPOOL=y
+# Mempool wants one contiguous DMA-capable internal-RAM block of ~48 KB
+# (rx_q_size+11 buffers × MAX_SDIO_BUFFER_SIZE). After the code growth in
+# c5bdf39 (log_capture) + fbb6402 the largest free DMA-internal block at
+# host_init time hovers right around that threshold and intermittently
+# fails: `HS_MP: mempool create failed: no mem` → sdio_mempool_create
+# assert → boot-loop. Disabling mempool makes ESP-Hosted heap_caps_malloc
+# each 1.5 KB buffer on demand — extra alloc/free traffic on RX, but no
+# single-contig requirement, so boot is deterministic.
+CONFIG_ESP_HOSTED_USE_MEMPOOL=n
 # Slave reset hold defaults to 1500 ms — that's the dominant chunk of boot.
 # 100 ms is plenty for the C6 to come up out of reset.
 CONFIG_ESP_HOSTED_SDIO_RESET_DELAY_MS=100

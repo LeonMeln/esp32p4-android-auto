@@ -15,6 +15,8 @@ tools/c6_ota_flasher/
 tools/bt_agent/build/
 tools/bt_agent/sdkconfig
 tools/bt_agent/sdkconfig.old
+# clangd LSP index (per-machine, auto-regenerated on file open).
+tools/bt_agent/.cache/
 
 # research/_sources/ are clones of upstream reference repos
 # (aasdk, openauto, headunit, waveshare_p4_4_3, WirelessAndroidAutoDongle).
