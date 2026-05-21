@@ -123,15 +123,20 @@ The P4 board exposes a `J3` header on the bottom edge with the free expansion
 pins. The USB-C debug console (GPIO 37/38) stays usable while this is wired up.
 
 ```
-D1 Mini side                ESP32-P4 (J3 header)
+WROOM side                  ESP32-P4 (J3 header)
 ─────────────────────────────────────────────────
 GPIO 17 (TX2)    ────►      GPIO 22  (UART RX)
 GPIO 16 (RX2)    ◄────      GPIO 21  (UART TX)
-GPIO 5           ◄────      GPIO 24  (RST, for bt_agent OTA)
-EN / IO0         ◄────      GPIO 25  (BOOT, for bt_agent OTA)
+EN (a.k.a. RST)  ◄────      GPIO 24  (RST,  for bt_agent OTA)
+GPIO 0 (BOOT)    ◄────      GPIO 25  (IO0,  for bt_agent OTA)
 3V3              ◄────      3V3
 GND              ────       GND
 ```
+
+`EN` / `GPIO 0` are the standard ESP32 reset + boot-mode pins — same combo
+the `esp_serial_flasher` uses on any ESP32 chip; on D1 Mini dev boards
+they're already broken out to the `EN` and `D3` (= GPIO 0) headers
+respectively.
 
 The RST/BOOT lines let the main P4 firmware automatically re-flash the BT
 agent over UART when their versions diverge — you only ever flash the D1 Mini
