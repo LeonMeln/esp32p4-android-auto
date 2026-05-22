@@ -83,17 +83,14 @@ VESC Tool — настраиваешь контроллер прямо во вр
 
 ### 1. Цепь питания
 
-```
-[Батарея 12В / шина VESC]
-        │
-        ▼
- [DC-DC step-down  12В → 5В,  ≥1 А]
-        │
-        ▼   (USB-C или 5V pin)
- [Плата Waveshare ESP32-P4]
-        │  встроенный LDO
-        ▼
-       3V3 ──────► (опционально) D1 Mini ESP32 3V3 pin
+```mermaid
+flowchart LR
+    BAT["🔋 Батарея 12В<br/>(шина VESC)"]
+    DCDC["DC-DC<br/>12В → 5В<br/>≥1 А"]
+    P4["Плата Waveshare<br/>ESP32-P4<br/>(USB-C / 5V pin)"]
+    V3V3["3V3 шина<br/>(J3 хедер)"]
+    WROOM["(опционально)<br/>WROOM 3V3 пин"]
+    BAT -->|+12В| DCDC -->|+5В| P4 -->|встроенный LDO| V3V3 --> WROOM
 ```
 
 > ⚠️ Если ставишь D1 Mini ради AA-бонуса, **питай его от 3.3В шины P4,
@@ -102,18 +99,38 @@ VESC Tool — настраиваешь контроллер прямо во вр
 
 ### 2. VESC CAN шина (основное)
 
-```
-   ESP32-P4 (3.3 В GPIO)                  TJA1051                CAN шина
-   ─────────────────────                  ───────                ────────
+```mermaid
+flowchart LR
+    subgraph P4["ESP32-P4 (3.3В GPIO)"]
+        direction TB
+        P48(["GPIO 48 — TWAI TX (выход)"])
+        P47(["GPIO 47 — TWAI RX (вход)"])
+        P5V(["5В"])
+        PGND(["GND"])
+    end
 
-   GPIO 48 (TWAI TX, выход)   ── 3.3 В ─►  TXD пин (вход)        CANH ── CAN_H
-                                                                  CANL ── CAN_L
-   GPIO 47 (TWAI RX, вход)    ◄─ делитель  RXD пин (выход)        │
-                              (5 В → 3.3 В)                       120 Ом между
-                                                                  CANH/CANL
-                              5 В ──────►  VCC                    (параллельно,
-                              GND ─────    GND                     если ещё нет
-                                                                   терминатора на шине)
+    subgraph XCVR["TJA1051 (лучше вариант T/3)"]
+        direction TB
+        TXD(["TXD (вход)"])
+        RXD(["RXD (выход)"])
+        VCC(["VCC"])
+        XGND(["GND"])
+        CANH(["CANH"])
+        CANL(["CANL"])
+    end
+
+    subgraph BUS["CAN шина"]
+        VESC["VESC контроллер"]
+        TERM["120 Ом резистор<br/>между CANH ↔ CANL"]
+    end
+
+    P48 -->|"3.3В драйвит TXD напрямую"| TXD
+    RXD -->|"5В — делитель 1.8к + 3.3к → 3.3В"| P47
+    P5V --> VCC
+    PGND --- XGND
+    CANH <--> VESC
+    CANL <--> VESC
+    CANH -.- TERM -.- CANL
 ```
 
 Направления пинов — с точки зрения MCU (стандарт NXP): на TJA1051
@@ -134,15 +151,34 @@ VESC Tool — настраиваешь контроллер прямо во вр
 J3 хедер — нижний торец платы Waveshare, там свободные пины расширения.
 USB-C debug консоль (GPIO 37/38) остаётся свободной при этом подключении.
 
-```
-WROOM сторона               ESP32-P4 (J3 хедер)
-─────────────────────────────────────────────────
-GPIO 17 (TX2)    ────►      GPIO 22  (UART RX)
-GPIO 16 (RX2)    ◄────      GPIO 21  (UART TX)
-EN (он же RST)   ◄────      GPIO 24  (RST, для OTA bt_agent)
-GPIO 0 (BOOT)    ◄────      GPIO 25  (IO0, для OTA bt_agent)
-3V3              ◄────      3V3
-GND              ────       GND
+```mermaid
+flowchart LR
+    subgraph WROOM["ESP32-WROOM-32<br/>(голый модуль или D1 Mini плата)"]
+        direction TB
+        W17(["GPIO 17 (TX2) — UART TX (выход)"])
+        W16(["GPIO 16 (RX2) — UART RX (вход)"])
+        WEN(["EN — reset чипа (вход)"])
+        WIO0(["GPIO 0 — выбор boot-режима (вход)"])
+        W3V3(["3V3 (вход питания)"])
+        WGND(["GND"])
+    end
+
+    subgraph P4J3["ESP32-P4 (J3 хедер)"]
+        direction TB
+        P22(["GPIO 22 — UART1 RX (вход)"])
+        P21(["GPIO 21 — UART1 TX (выход)"])
+        P24(["GPIO 24 — драйвит WROOM RST"])
+        P25(["GPIO 25 — драйвит WROOM IO0"])
+        P3V3(["3V3 (выход)"])
+        PGND(["GND"])
+    end
+
+    W17 -->|UART данные| P22
+    P21 -->|UART данные| W16
+    P24 -->|импульс reset| WEN
+    P25 -->|выбор boot| WIO0
+    P3V3 -->|3.3В питание| W3V3
+    PGND --- WGND
 ```
 
 `EN` / `GPIO 0` — стандартная связка reset + boot-mode у любого ESP32,

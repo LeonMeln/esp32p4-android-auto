@@ -80,17 +80,14 @@ the BT path on every boot.
 
 ### 1. Power chain
 
-```
-[12V battery / VESC bus]
-        │
-        ▼
- [DC-DC step-down  12V → 5V,  ≥1 A]
-        │
-        ▼   (USB-C or 5V pin)
- [Waveshare ESP32-P4 board]
-        │  on-board LDO
-        ▼
-       3V3 rail ──────► (optional) D1 Mini ESP32 3V3 pin
+```mermaid
+flowchart LR
+    BAT["🔋 12V battery<br/>/ VESC bus"]
+    DCDC["DC-DC<br/>12V → 5V<br/>≥1 A"]
+    P4["Waveshare<br/>ESP32-P4 board<br/>(USB-C / 5V pin)"]
+    V3V3["3V3 rail<br/>(J3 header)"]
+    WROOM["(optional)<br/>WROOM 3V3 pin"]
+    BAT -->|+12V| DCDC -->|+5V| P4 -->|on-board LDO| V3V3 --> WROOM
 ```
 
 > ⚠️ If you wire up a D1 Mini for the AA bonus, **power it from the P4's
@@ -100,18 +97,38 @@ the BT path on every boot.
 
 ### 2. VESC CAN bus (primary)
 
-```
-   ESP32-P4 (3.3 V GPIO)                  TJA1051                 CAN bus
-   ─────────────────────                  ───────                 ───────
+```mermaid
+flowchart LR
+    subgraph P4["ESP32-P4 (3.3V GPIO)"]
+        direction TB
+        P48(["GPIO 48 — TWAI TX (output)"])
+        P47(["GPIO 47 — TWAI RX (input)"])
+        P5V(["5V"])
+        PGND(["GND"])
+    end
 
-   GPIO 48 (TWAI TX, output)  ── 3.3 V ─►  TXD pin (input)        CANH ── CAN_H
-                                                                  CANL ── CAN_L
-   GPIO 47 (TWAI RX, input)   ◄─ divider   RXD pin (output)        │
-                              (5 V → 3.3 V)                       120 Ω across
-                                                                  CANH/CANL
-                              5 V ──────►  VCC                    (parallel,
-                              GND ─────    GND                     if no terminator
-                                                                   already on the bus)
+    subgraph XCVR["TJA1051 (prefer T/3 variant)"]
+        direction TB
+        TXD(["TXD (input)"])
+        RXD(["RXD (output)"])
+        VCC(["VCC"])
+        XGND(["GND"])
+        CANH(["CANH"])
+        CANL(["CANL"])
+    end
+
+    subgraph BUS["CAN bus"]
+        VESC["VESC controller"]
+        TERM["120Ω resistor<br/>across CANH ↔ CANL"]
+    end
+
+    P48 -->|"3.3V drives TXD directly"| TXD
+    RXD -->|"5V — divider 1.8k + 3.3k → 3.3V"| P47
+    P5V --> VCC
+    PGND --- XGND
+    CANH <--> VESC
+    CANL <--> VESC
+    CANH -.- TERM -.- CANL
 ```
 
 Pin direction is from the MCU's perspective (NXP convention): on the
@@ -131,15 +148,34 @@ TJA1051, **TXD is an input** (MCU drives it), **RXD is an output**
 The P4 board exposes a `J3` header on the bottom edge with the free expansion
 pins. The USB-C debug console (GPIO 37/38) stays usable while this is wired up.
 
-```
-WROOM side                  ESP32-P4 (J3 header)
-─────────────────────────────────────────────────
-GPIO 17 (TX2)    ────►      GPIO 22  (UART RX)
-GPIO 16 (RX2)    ◄────      GPIO 21  (UART TX)
-EN (a.k.a. RST)  ◄────      GPIO 24  (RST,  for bt_agent OTA)
-GPIO 0 (BOOT)    ◄────      GPIO 25  (IO0,  for bt_agent OTA)
-3V3              ◄────      3V3
-GND              ────       GND
+```mermaid
+flowchart LR
+    subgraph WROOM["ESP32-WROOM-32<br/>(bare module or D1 Mini dev board)"]
+        direction TB
+        W17(["GPIO 17 (TX2) — UART TX (out)"])
+        W16(["GPIO 16 (RX2) — UART RX (in)"])
+        WEN(["EN — chip reset (input)"])
+        WIO0(["GPIO 0 — BOOT-mode select (input)"])
+        W3V3(["3V3 (power in)"])
+        WGND(["GND"])
+    end
+
+    subgraph P4J3["ESP32-P4 (J3 header)"]
+        direction TB
+        P22(["GPIO 22 — UART1 RX (in)"])
+        P21(["GPIO 21 — UART1 TX (out)"])
+        P24(["GPIO 24 — drives WROOM RST"])
+        P25(["GPIO 25 — drives WROOM IO0"])
+        P3V3(["3V3 out"])
+        PGND(["GND"])
+    end
+
+    W17 -->|UART data| P22
+    P21 -->|UART data| W16
+    P24 -->|reset pulse| WEN
+    P25 -->|boot select| WIO0
+    P3V3 -->|3.3V power| W3V3
+    PGND --- WGND
 ```
 
 `EN` / `GPIO 0` are the standard ESP32 reset + boot-mode pins — same combo
