@@ -101,15 +101,24 @@ the BT path on every boot.
 ### 2. VESC CAN bus (primary)
 
 ```
-[VESC CAN_H/CAN_L]──┬── [120 Ω terminator, if not already on the bus]
-                    │
-              [TJA1051 transceiver, 5V VCC]
-                    │
-        TXD ◄────── GPIO 48 (P4)            ← 3.3 V drives TJA1051 TXD directly
-        RXD ──────► [resistor divider 5V→3.3V] ──► GPIO 47 (P4)
+   ESP32-P4 (3.3 V GPIO)                  TJA1051                 CAN bus
+   ─────────────────────                  ───────                 ───────
+
+   GPIO 48 (TWAI TX, output)  ── 3.3 V ─►  TXD pin (input)        CANH ── CAN_H
+                                                                  CANL ── CAN_L
+   GPIO 47 (TWAI RX, input)   ◄─ divider   RXD pin (output)        │
+                              (5 V → 3.3 V)                       120 Ω across
+                                                                  CANH/CANL
+                              5 V ──────►  VCC                    (parallel,
+                              GND ─────    GND                     if no terminator
+                                                                   already on the bus)
 ```
 
-- **Divider values**: 1.8 kΩ (series) + 3.3 kΩ (to GND) — or 10 kΩ + 18 kΩ.
+Pin direction is from the MCU's perspective (NXP convention): on the
+TJA1051, **TXD is an input** (MCU drives it), **RXD is an output**
+(transceiver drives the MCU).
+
+- **Divider values on RXD**: 1.8 kΩ (series) + 3.3 kΩ (to GND) — or 10 kΩ + 18 kΩ.
 - **TJA1051 vs TJA1051T/3**: if you can choose, get the **T/3** variant — it
   has a dedicated `VIO` pin you can tie to 3.3 V and you can skip the divider
   entirely on RXD.
