@@ -35,6 +35,7 @@ static struct {
     uint8_t motor_poles;
     float power_max_kw;
     uint32_t clock_offset_secs;
+    bool aa_autoconnect;
 } sim_settings = {
     .target_vesc_id = 10,
     .can_speed_index = 3,  // 1000 kbps
@@ -47,6 +48,7 @@ static struct {
     .motor_poles = 7,  // Standard for VESC motors
     .power_max_kw = 4.5f,
     .clock_offset_secs = 0,
+    .aa_autoconnect = true,
 };
 #endif
 
@@ -246,6 +248,22 @@ void settings_wrapper_set_vesc_emulator(bool on) {
     (void)on;
 #else
     settings_set_vesc_emulator(on);
+#endif
+}
+
+bool settings_wrapper_get_aa_autoconnect(void) {
+#if SIMULATOR_MODE
+    return sim_settings.aa_autoconnect;
+#else
+    return settings_get_aa_autoconnect();
+#endif
+}
+
+void settings_wrapper_set_aa_autoconnect(bool on) {
+#if SIMULATOR_MODE
+    sim_settings.aa_autoconnect = on;
+#else
+    settings_set_aa_autoconnect(on);
 #endif
 }
 

@@ -41,19 +41,26 @@ static const char *TAG = "bt_agent";
  * mismatch it forces this chip into ROM bootloader and reflashes from the
  * embedded blob. Bump together with the CONFIG_BT_AGENT_FW_VERSION default
  * in main/Kconfig.projbuild on the P4 side any time the agent code changes. */
-#define BT_AGENT_FW_VERSION "0.4.0"
+#define BT_AGENT_FW_VERSION "0.5.0"
 
 /* NVS namespace + key for remembering the last successfully-paired phone's
  * BDA. On boot, if a value is present, we proactively HFP-connect to it so
  * the user doesn't have to fish the phone out and tap "connect" every time
  * the head unit powers up — once ACL is up, gearhead on the phone opens
  * SPP to our AA Wireless UUID by itself. */
-#define NVS_NS           "bt_agent"
-#define NVS_KEY_LAST_BDA "last_bda"
+#define NVS_NS                 "bt_agent"
+#define NVS_KEY_LAST_BDA       "last_bda"
+#define NVS_KEY_AUTO_RECONNECT "auto_recon"
 
 static esp_bd_addr_t g_last_bda = {0};
 static bool          g_last_bda_valid = false;
 static volatile bool g_hfp_connected  = false;
+/* User-controlled gate for the auto-reconnect loop. Default ON to keep
+ * power-on behaviour the same as before this knob existed. Updated at
+ * runtime by AUTO_RECONNECT|N lines from P4 over UART, and persisted to
+ * NVS so the agent honours the user's choice even before the first P4
+ * sync arrives after boot. */
+static volatile bool g_auto_reconnect = true;
 
 /* ---------- User-configurable identity / Wifi creds ---------- */
 
@@ -446,6 +453,15 @@ static void auto_reconnect_task(void *arg)
     vTaskDelay(pdMS_TO_TICKS(1500));
 
     while (g_last_bda_valid) {
+        if (!g_auto_reconnect) {
+            /* User disabled the feature from P4 Settings. Stay parked; the
+             * loop wakes up when the flag flips back on. Keep the task
+             * alive instead of vTaskDelete-ing so we don't have to manage
+             * task creation from the UART callback path. */
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            idx = 0;
+            continue;
+        }
         if (g_spp_handle != 0 || g_hfp_connected) {
             /* Phone is back. Sleep, then re-check periodically — if the link
              * drops later (phone walked away, then came back) we'll page
@@ -487,7 +503,26 @@ static void load_last_bda(void)
                  g_last_bda[0], g_last_bda[1], g_last_bda[2],
                  g_last_bda[3], g_last_bda[4], g_last_bda[5]);
     }
+    uint8_t v;
+    if (nvs_get_u8(h, NVS_KEY_AUTO_RECONNECT, &v) == ESP_OK) {
+        g_auto_reconnect = (v != 0);
+    }
     nvs_close(h);
+    ESP_LOGI(TAG, "auto_reconnect=%d (from NVS)", g_auto_reconnect ? 1 : 0);
+}
+
+/* Public hook for uart_link: P4 sent AUTO_RECONNECT|N. Persist + apply. */
+void bt_agent_set_auto_reconnect(bool on)
+{
+    if (g_auto_reconnect == on) return;
+    g_auto_reconnect = on;
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, NVS_KEY_AUTO_RECONNECT, on ? 1 : 0);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    ESP_LOGI(TAG, "auto_reconnect → %d (from P4)", on ? 1 : 0);
 }
 
 /* ---------- Init ---------- */

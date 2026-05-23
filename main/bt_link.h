@@ -67,3 +67,10 @@ void bt_link_set_quiet(bool quiet);
  * pipes, so no escaping. */
 void bt_link_publish_wifi(const char *ssid, const char *password,
                           const char *bssid, const char *ip, int port);
+
+/* Tell the BT agent whether to proactively HFP-page the last paired phone
+ * on power-up. When false, the agent stays silent and only reconnects if
+ * the phone initiates BT from its side. Persisted on the agent in NVS so
+ * the value survives across agent reboots without P4 having to re-send it
+ * every boot — we still re-send on each P4 boot for safety. */
+void bt_link_set_auto_reconnect(bool on);

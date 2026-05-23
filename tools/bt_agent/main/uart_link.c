@@ -41,12 +41,20 @@ const uart_link_wifi_t *uart_link_get_wifi(void)
     return s_wifi_have ? &s_wifi : NULL;
 }
 
+/* Forward decl — defined in main.c near the auto-reconnect task. */
+extern void bt_agent_set_auto_reconnect(bool on);
+
 /* Parse one received line.
  *   WIFI|<ssid>|<password>|<bssid>|<ip>|<port>
+ *   AUTO_RECONNECT|<0|1>
  * Pipes split fields. Trailing newline already stripped by caller.
  * Stores into s_wifi on success and sets s_wifi_have. */
 static void parse_line(char *line)
 {
+    if (strncmp(line, "AUTO_RECONNECT|", 15) == 0) {
+        bt_agent_set_auto_reconnect(line[15] == '1');
+        return;
+    }
     if (strncmp(line, "WIFI|", 5) != 0) {
         ESP_LOGW(TAG, "ignoring unknown line: %.40s", line);
         return;

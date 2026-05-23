@@ -272,6 +272,15 @@ static void wifi_resend_task(void *arg)
     vTaskDelete(NULL);
 }
 
+void bt_link_set_auto_reconnect(bool on)
+{
+    char line[32];
+    int  n = snprintf(line, sizeof(line), "AUTO_RECONNECT|%d\n", on ? 1 : 0);
+    if (n <= 0 || n >= (int)sizeof(line)) return;
+    uart_write_bytes(UART_PORT, line, n);
+    ESP_LOGI(TAG, "→ BT agent: AUTO_RECONNECT=%d", on ? 1 : 0);
+}
+
 void bt_link_publish_wifi(const char *ssid, const char *password,
                           const char *bssid, const char *ip, int port)
 {

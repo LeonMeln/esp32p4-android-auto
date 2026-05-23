@@ -172,6 +172,9 @@ static lv_obj_t *settings_demo_mode_label = NULL;
 static lv_obj_t *settings_vesc_emulator_switch = NULL;
 static lv_obj_t *settings_vesc_emulator_label = NULL;
 static lv_obj_t *settings_vesc_emulator_hint  = NULL;
+static lv_obj_t *settings_aa_autoconnect_switch = NULL;
+static lv_obj_t *settings_aa_autoconnect_label  = NULL;
+static lv_obj_t *settings_aa_autoconnect_hint   = NULL;
 static lv_obj_t *settings_wheel_diameter_spinbox = NULL;
 static lv_obj_t *settings_wheel_diameter_label = NULL;
 static lv_obj_t *settings_wheel_diameter_plus_btn = NULL;
@@ -1374,6 +1377,18 @@ static void vesc_emulator_switch_event_cb(lv_event_t *e) {
     }
 }
 
+// Event handler for AA Auto-Connect switch. The actual reconnect loop lives
+// on the BT agent (D1 Mini); the setter fires a callback in main.c that
+// pushes AUTO_RECONNECT|0|1 over UART, so the flag takes effect immediately.
+static void aa_autoconnect_switch_event_cb(lv_event_t *e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_VALUE_CHANGED) {
+        lv_obj_t *obj = lv_event_get_target(e);
+        bool checked = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        settings_wrapper_set_aa_autoconnect(checked);
+    }
+}
+
 // Event handlers for Wheel Diameter spinbox
 static void wheel_diameter_spinbox_event_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
@@ -2299,6 +2314,33 @@ void settings_ui_init(lv_ui *ui) {
     lv_obj_set_pos(settings_vesc_emulator_hint, 220, y_pos + 22);
     lv_obj_set_style_text_color(settings_vesc_emulator_hint, lv_color_hex(0x999999), 0);
     lv_obj_set_style_text_font(settings_vesc_emulator_hint, &lv_font_montserrat_14, 0);
+
+    y_pos += SETTINGS_ROW_H;
+
+    // ========== AA Auto-Connect Switch ==========
+    // Controls the BT agent's auto-reconnect-on-boot loop (it HFP-pages the
+    // last paired phone until ACL comes up). When off, the agent stays quiet
+    // and the user must initiate BT from the phone side.
+    settings_aa_autoconnect_label =
+        settings_heading_create(ui->settings, y_pos, "AA Auto-Connect");
+
+    settings_aa_autoconnect_switch = lv_switch_create(ui->settings);
+    lv_obj_set_pos(settings_aa_autoconnect_switch, 730, y_pos + 15);
+    lv_obj_set_size(settings_aa_autoconnect_switch, 60, 30);
+    if (settings_wrapper_get_aa_autoconnect()) {
+        lv_obj_add_state(settings_aa_autoconnect_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_set_style_bg_color(settings_aa_autoconnect_switch, lv_color_hex(0x2a3440), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(settings_aa_autoconnect_switch, lv_color_hex(0x00a9ff),
+                              LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_add_event_cb(settings_aa_autoconnect_switch, aa_autoconnect_switch_event_cb,
+                        LV_EVENT_VALUE_CHANGED, NULL);
+
+    settings_aa_autoconnect_hint = lv_label_create(ui->settings);
+    lv_label_set_text(settings_aa_autoconnect_hint, "Reconnect to last phone on power-on");
+    lv_obj_set_pos(settings_aa_autoconnect_hint, 220, y_pos + 22);
+    lv_obj_set_style_text_color(settings_aa_autoconnect_hint, lv_color_hex(0x999999), 0);
+    lv_obj_set_style_text_font(settings_aa_autoconnect_hint, &lv_font_montserrat_14, 0);
 
     y_pos += SETTINGS_ROW_H;
     /*

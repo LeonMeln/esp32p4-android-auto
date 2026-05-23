@@ -64,6 +64,9 @@ void  settings_wrapper_set_power_max_kw(float power_max_kw);
 bool  settings_wrapper_get_vesc_emulator(void);
 void  settings_wrapper_set_vesc_emulator(bool on);
 
+bool  settings_wrapper_get_aa_autoconnect(void);
+void  settings_wrapper_set_aa_autoconnect(bool on);
+
 uint32_t settings_wrapper_get_clock_secs_of_day(void);
 void     settings_wrapper_set_clock_secs_of_day(uint32_t secs_of_day);
 

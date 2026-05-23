@@ -185,6 +185,17 @@ static void on_target_id_changed(uint8_t new_id)
     ESP_LOGI(TAG, "VESC target ID → %u", new_id);
 }
 
+/* settings_set_aa_autoconnect → here. Forwards to the BT agent so it can
+ * arm or disarm its auto-reconnect-on-boot loop without a P4 restart. The
+ * agent persists the value to its own NVS, so this call is also fine if
+ * bt_link_init hasn't completed yet — the UART write is a no-op when the
+ * driver isn't installed, and the value re-syncs from the explicit send
+ * we issue at boot below. */
+static void on_aa_autoconnect_changed(bool on)
+{
+    bt_link_set_auto_reconnect(on);
+}
+
 void app_main(void)
 {
     /* Install the PSRAM-backed log ring buffer before anything else
@@ -406,6 +417,11 @@ void app_main(void)
         snprintf(ip_str, sizeof(ip_str), IPSTR, IP2STR(&ap_ip.ip));
         bt_link_publish_wifi(ap->ssid, ap->password, ap->bssid_str,
                              ip_str, AA_TCP_PORT);
+        /* Sync the user-controlled auto-reconnect flag to the agent. Re-sent
+         * on every boot so a fresh agent (post-OTA or fresh-flash with empty
+         * NVS) doesn't start paging the last phone against the user's wish. */
+        bt_link_set_auto_reconnect(settings_get_aa_autoconnect());
+        settings_register_aa_autoconnect_cb(on_aa_autoconnect_changed);
     }
 
     /* Compose a one-line status with our IP for the idle screen.

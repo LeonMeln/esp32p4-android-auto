@@ -30,12 +30,14 @@ static struct {
     uint8_t              motor_poles;
     float                power_max_kw;
     bool                 vesc_emulator;
+    bool                 aa_autoconnect;
 } s_cache;
 
 static settings_can_speed_cb_t     s_can_speed_cb;
 static settings_brightness_cb_t    s_brightness_cb;
 static settings_target_id_cb_t     s_target_id_cb;
 static settings_controller_id_cb_t s_controller_id_cb;
+static settings_aa_autoconnect_cb_t s_aa_autoconnect_cb;
 
 /* Validate a kbps value (read from NVS / passed by callers). Bad values
  * fall back to the Kconfig default. The UI dropdown can only produce one
@@ -75,6 +77,7 @@ static void load_from_nvs(void) {
     if (nvs_get_u8 (h, "batt_calc",   &u8 ) == ESP_OK) s_cache.battery_calc_mode = (battery_calc_mode_t)u8;
     if (nvs_get_u8 (h, "show_fps",    &u8 ) == ESP_OK) s_cache.show_fps          = (u8 != 0);
     if (nvs_get_u8 (h, "vesc_sim",    &u8 ) == ESP_OK) s_cache.vesc_emulator     = (u8 != 0);
+    if (nvs_get_u8 (h, "aa_autocon",  &u8 ) == ESP_OK) s_cache.aa_autoconnect    = (u8 != 0);
     if (nvs_get_u16(h, "wheel_mm",    &u16) == ESP_OK) s_cache.wheel_diameter_mm = u16;
     if (nvs_get_u8 (h, "motor_poles", &u8 ) == ESP_OK) s_cache.motor_poles       = u8;
 
@@ -122,6 +125,7 @@ void settings_init(void) {
     s_cache.motor_poles       = 7;
     s_cache.power_max_kw      = 4.5f;
     s_cache.vesc_emulator     = false;
+    s_cache.aa_autoconnect    = true;
 
     load_from_nvs();
     s_cache.loaded = true;
@@ -143,6 +147,7 @@ uint16_t            settings_get_wheel_diameter_mm(void) { return s_cache.wheel_
 uint8_t             settings_get_motor_poles(void)       { return s_cache.motor_poles; }
 float               settings_get_power_max_kw(void)      { return s_cache.power_max_kw; }
 bool                settings_get_vesc_emulator(void)     { return s_cache.vesc_emulator; }
+bool                settings_get_aa_autoconnect(void)    { return s_cache.aa_autoconnect; }
 
 /* ---------------- setters ---------------- */
 
@@ -260,6 +265,17 @@ void settings_set_vesc_emulator(bool on) {
     commit(h);
 }
 
+void settings_set_aa_autoconnect(bool on) {
+    if (s_cache.aa_autoconnect == on) return;
+    s_cache.aa_autoconnect = on;
+    nvs_handle_t h;
+    if (open_rw(&h) == ESP_OK) {
+        nvs_set_u8(h, "aa_autocon", on ? 1 : 0);
+        commit(h);
+    }
+    if (s_aa_autoconnect_cb) s_aa_autoconnect_cb(on);
+}
+
 /* ---------- debounced (volatile + persist) variants ----------
  * Volatile setters mirror their full counterparts EXCEPT they skip the
  * nvs_set/commit pair. Hot-apply callbacks still fire so the UI gets a
@@ -356,6 +372,7 @@ void settings_register_can_speed_cb(settings_can_speed_cb_t cb)         { s_can_
 void settings_register_brightness_cb(settings_brightness_cb_t cb)       { s_brightness_cb    = cb; }
 void settings_register_target_id_cb(settings_target_id_cb_t cb)         { s_target_id_cb     = cb; }
 void settings_register_controller_id_cb(settings_controller_id_cb_t cb) { s_controller_id_cb = cb; }
+void settings_register_aa_autoconnect_cb(settings_aa_autoconnect_cb_t cb) { s_aa_autoconnect_cb = cb; }
 
 /* ---------------- firmware-version info ----------------
  * Pure RAM, no NVS. Race-tolerant in practice: setters fire once at boot
