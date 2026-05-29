@@ -9,6 +9,7 @@ library;
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -73,7 +74,9 @@ class BleService {
     // when the peripheral advertises. iOS handles the equivalent through
     // CoreBluetooth's stored-peripheral mechanism, but only if the user
     // accepted the system pairing prompt on first connect.
-    dev.connect(autoConnect: true).catchError((_) {});
+    // mtu MUST be null with autoConnect — the package's default is 512
+    // and the assertion `(mtu == null) || !autoConnect` would trip.
+    dev.connect(autoConnect: true, mtu: null).catchError((_) {});
   }
 
   /// The head unit's adv packet carries the NUS UUID (legacy, for VESC
@@ -99,28 +102,42 @@ class BleService {
     return results.values.toList();
   }
 
+  Completer<void>? _firstHandshake;
+
   /// One-shot pairing flow triggered from the UI. Persists the remote id
-  /// on first successful service discovery so subsequent app launches
-  /// auto-resume without going through the scanner.
+  /// only after the first clean handshake so we don't trap ourselves
+  /// auto-reconnecting to a device that isn't actually a NotifBridge
+  /// head unit.
   Future<void> connect(BluetoothDevice device) async {
     await _teardown();
     _device = device;
     _userInitiatedDisconnect = false;
     _setState(BleConnState.connecting);
 
+    _firstHandshake = Completer<void>();
     _connSub = device.connectionState.listen(_onConnectionStateChanged);
 
-    await device.connect(autoConnect: true, mtu: 247);
-    // Some Android stacks ignore the connect mtu param — request explicitly.
+    // flutter_blue_plus's `connect()` defaults mtu to 512, which conflicts
+    // with autoConnect:true (the OS-level autoConnect path doesn't accept
+    // a pre-negotiation MTU). Pass mtu:null explicitly and run requestMtu
+    // ourselves once the link is up — see _completeHandshake().
+    // With autoConnect:true this returns immediately; the link comes up
+    // asynchronously through the connectionState stream.
+    await device.connect(autoConnect: true, mtu: null);
+
+    // Wait for connectionState→connected→_completeHandshake to succeed.
+    // First-attempt timeout: 20 s covers a slow GATT discovery on real
+    // hardware. If the device never advertises within that window, surface
+    // the failure to the UI so the user can retry.
     try {
-      await device.requestMtu(247);
-    } catch (_) {}
+      await _firstHandshake!.future.timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      _firstHandshake = null;
+      await _teardown();
+      throw StateError('timeout: device did not connect within 20 s');
+    }
+    _firstHandshake = null;
 
-    await _completeHandshake(device);
-
-    // Persist only after a clean handshake so we don't trap ourselves
-    // auto-reconnecting to a device that isn't actually a NotifBridge
-    // head unit.
     final p = await SharedPreferences.getInstance();
     await p.setString(_prefSavedId, device.remoteId.str);
     _savedRemoteId = device.remoteId.str;
@@ -129,6 +146,9 @@ class BleService {
   }
 
   Future<void> _completeHandshake(BluetoothDevice device) async {
+    try {
+      await device.requestMtu(247);
+    } catch (_) {}
     final services = await device.discoverServices();
     final svc = services.firstWhere(
       (s) => s.uuid.toString().toLowerCase() == NotifBridgeUuids.service,
@@ -148,10 +168,16 @@ class BleService {
 
   void _onConnectionStateChanged(BluetoothConnectionState s) {
     if (s == BluetoothConnectionState.connected && _device != null) {
-      // OS-driven (auto)reconnect just brought the link back up — redo
-      // service discovery so handles are fresh and notifications resume.
-      _completeHandshake(_device!).then((_) => _fg.start()).catchError((e) {
+      // The OS-level link just came up — discover services, request the
+      // larger MTU, subscribe to NOTIFY. Resolves the pending pairing
+      // completer if this is the first time, or just refreshes handles
+      // after an autoConnect reconnect.
+      _completeHandshake(_device!).then((_) {
+        _fg.start();
+        _firstHandshake?.complete();
+      }).catchError((e, st) {
         _setState(BleConnState.disconnected);
+        _firstHandshake?.completeError(e, st);
       });
     } else if (s == BluetoothConnectionState.disconnected) {
       _setState(BleConnState.disconnected);
@@ -199,12 +225,48 @@ class BleService {
 
   Future<void> sendAlbumArt(IconMsg i) => _send(PduType.albumArt, i.encode());
 
+  /// Serializes outbound chunks. Drops the whole PDU if the link goes
+  /// away mid-transfer; never throws — exceptions bubble up as unhandled
+  /// otherwise (Coordinator fires this from a stream listener with no
+  /// outer try/catch).
+  ///
+  /// flutter_blue_plus's `withoutResponse:true` path doesn't internally
+  /// queue writes against the GATT stack — back-to-back chunks of a
+  /// 50-90 KB album-art PNG slam Android's ATT layer faster than it can
+  /// drain and we get `ERROR_GATT_WRITE_REQUEST_BUSY` (status 201).
+  /// Retry with a short backoff handles the transient pressure; falling
+  /// back to `withoutResponse:false` after a couple of fails forces the
+  /// stack to wait for ACKs, slower but unbreakable.
   Future<void> _send(PduType type, Uint8List body) async {
+    if (_state != BleConnState.connected) return;
     final ch = _inbound;
     if (ch == null) return;
     final chunks = _encoder.encode(type, body);
     for (final c in chunks) {
-      await ch.write(c, withoutResponse: true);
+      var attempt = 0;
+      while (true) {
+        try {
+          // First two tries: fast write-without-response. After that
+          // switch to acknowledged writes which the stack can pace.
+          final wor = attempt < 2;
+          await ch.write(c, withoutResponse: wor);
+          break;
+        } on PlatformException catch (e) {
+          final msg = (e.message ?? '').toLowerCase();
+          final busy = msg.contains('busy') || msg.contains('201');
+          if (!busy || attempt >= 6) {
+            // Permanent error or out of retries — drop the rest of the
+            // PDU; the head unit will time it out / reasm-drop the
+            // partial.
+            return;
+          }
+          attempt++;
+          await Future.delayed(Duration(milliseconds: 20 * attempt));
+        } catch (_) {
+          // Anything else (link gone, channel missing) — bail silently.
+          return;
+        }
+      }
     }
   }
 
@@ -220,5 +282,19 @@ class BleService {
   void _setState(BleConnState s) {
     _state = s;
     _stateCtrl.add(s);
+    // Mirror the state into the system shade pill so the user sees
+    // "Connected / Disconnected" without opening the app.
+    final connected = s == BleConnState.connected;
+    final subtitle = switch (s) {
+      BleConnState.connected =>
+        _device?.platformName.isNotEmpty == true
+            ? 'Linked to ${_device!.platformName}'
+            : 'Linked to head unit',
+      BleConnState.connecting => 'Connecting…',
+      BleConnState.scanning => 'Scanning…',
+      BleConnState.disconnected => '',
+      BleConnState.idle => '',
+    };
+    _fg.setStatus(connected: connected, subtitle: subtitle).catchError((_) {});
   }
 }

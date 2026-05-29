@@ -3,6 +3,9 @@ package com.aabridge.aa_bridge
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -24,6 +27,13 @@ object MediaListener {
     private val main = Handler(Looper.getMainLooper())
     private var ticker: Runnable? = null
     private var lastSourcePackage: String? = null
+    // True once we've already pushed a fully-empty snapshot. Stops the
+    // 1 Hz ticker from continually emitting "" / "" / "", which would
+    // overwrite anything the test panel (or another producer) sent
+    // directly through BleService.sendMedia. We still want a *single*
+    // empty push when a real session ends, so the head unit clears
+    // itself — that's why we don't drop empties unconditionally.
+    private var lastWasEmpty = false
 
     fun streamHandler(ctx: Context): EventChannel.StreamHandler =
         object : EventChannel.StreamHandler {
@@ -103,9 +113,17 @@ object MediaListener {
         val s = sink ?: return
         val c = activeController()
         if (c == null) {
-            s.success(emptySnapshot())
+            // Push exactly one empty snapshot per "no session" transition.
+            // Subsequent ticker runs while nothing's playing stay silent
+            // so they don't clobber data fed in via the test panel /
+            // direct BleService.sendMedia.
+            if (!lastWasEmpty) {
+                s.success(emptySnapshot())
+                lastWasEmpty = true
+            }
             return
         }
+        lastWasEmpty = false
         val md = c.metadata
         val ps = c.playbackState
         val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
@@ -142,12 +160,28 @@ object MediaListener {
 
     private fun bitmapToPng(b: Bitmap?): ByteArray? {
         if (b == null) return null
-        // Limit album art to 200x200 to keep BLE transfer short.
-        val scaled = if (b.width > 200 || b.height > 200)
-            Bitmap.createScaledBitmap(b, 200, 200, true) else b
-        val out = ByteArrayOutputStream()
-        scaled.compress(Bitmap.CompressFormat.PNG, 100, out)
-        return out.toByteArray()
+        // Produce a 350×135 PNG sized exactly for the head unit's music
+        // tile — LVGL renders it 1:1, no zoom-cover hack needed. Single
+        // Canvas draw with cover-fit matrix: scale to max(dst/src) so
+        // the destination is fully filled, then center the result; the
+        // canvas clips whatever leaks past 350×135.
+        val dstW = 350
+        val dstH = 135
+        val out = Bitmap.createBitmap(dstW, dstH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        val sx = dstW.toFloat() / b.width
+        val sy = dstH.toFloat() / b.height
+        val scale = if (sx > sy) sx else sy
+        val drawnW = b.width  * scale
+        val drawnH = b.height * scale
+        val m = Matrix().apply {
+            postScale(scale, scale)
+            postTranslate((dstW - drawnW) / 2f, (dstH - drawnH) / 2f)
+        }
+        canvas.drawBitmap(b, m, Paint(Paint.FILTER_BITMAP_FLAG))
+        val bytes = ByteArrayOutputStream()
+        out.compress(Bitmap.CompressFormat.PNG, 100, bytes)
+        return bytes.toByteArray()
     }
 
     // Helper for any future hardware-key relaying.
