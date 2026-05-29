@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../ble/ble_service.dart';
 import '../ble/messages.dart';
+import '../i18n/strings.dart';
 
 /// Sends fake notifications / media frames over BLE without involving
 /// the system listener. Lets us verify the head unit's parser and LVGL
@@ -31,19 +32,19 @@ class _TestPanelState extends State<TestPanel> {
       BleService.instance.currentState == BleConnState.connected;
 
   Future<void> _sendNotif(NotificationMsg n) async {
-    if (!_connected) return _toast('Не подключено к head unit');
+    if (!_connected) return _toast(t(context, 'test.not_connected'));
     await BleService.instance.sendNotification(n);
-    _toast('Отправлено: ${n.title}');
+    _toast('${t(context, 'test.sent')}${n.title}');
   }
 
   Future<void> _sendMedia() async {
-    if (!_connected) return _toast('Не подключено к head unit');
-    final t = _tracks[_trackIdx];
+    if (!_connected) return _toast(t(context, 'test.not_connected'));
+    final tr = _tracks[_trackIdx];
     await BleService.instance.sendMedia(MediaMsg(
-      title: t.title,
-      artist: t.artist,
-      album: t.album,
-      durationMs: t.duration,
+      title: tr.title,
+      artist: tr.artist,
+      album: tr.album,
+      durationMs: tr.duration,
       positionMs: _positionMs,
       isPlaying: _playing,
       albumArtHash: 0,
@@ -137,10 +138,10 @@ class _TestPanelState extends State<TestPanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(bottom: 4, left: 4),
-              child: Text('Тест уведомлений',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4, left: 4),
+              child: Text(t(context, 'test.notif.section'),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             Wrap(
               spacing: 8,
@@ -149,24 +150,26 @@ class _TestPanelState extends State<TestPanel> {
                 FilledButton.tonalIcon(
                   onPressed: _testWhatsapp,
                   icon: const Icon(Icons.chat),
-                  label: const Text('WhatsApp'),
+                  label: Text(t(context, 'test.notif.whatsapp')),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _testTelegram,
                   icon: const Icon(Icons.send),
-                  label: const Text('Telegram'),
+                  label: Text(t(context, 'test.notif.telegram')),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _testLong,
                   icon: const Icon(Icons.subject),
-                  label: const Text('Длинный текст'),
+                  label: Text(t(context, 'test.notif.long')),
                 ),
               ],
             ),
             const Divider(height: 24),
             Padding(
               padding: const EdgeInsets.only(left: 4, bottom: 4),
-              child: Text('Тест медиа · ${track.artist} — ${track.title}',
+              child: Text(
+                  '${t(context, 'test.media.section')} · '
+                  '${track.artist} — ${track.title}',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             Row(
@@ -185,7 +188,7 @@ class _TestPanelState extends State<TestPanel> {
                 FilledButton.tonalIcon(
                   onPressed: _mediaSeek,
                   icon: const Icon(Icons.fast_forward),
-                  label: const Text('+30s'),
+                  label: Text(t(context, 'test.seek')),
                 ),
               ],
             ),

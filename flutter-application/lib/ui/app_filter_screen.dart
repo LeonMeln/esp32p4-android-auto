@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../bridge/notification_bridge.dart';
 import '../coordinator.dart';
+import '../i18n/strings.dart';
 import '../settings/app_filter.dart';
 
 class AppFilterScreen extends StatefulWidget {
@@ -38,7 +39,7 @@ class _AppFilterScreenState extends State<AppFilterScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Приложения')),
+        appBar: AppBar(title: Text(t(context, 'filter.title'))),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -48,16 +49,16 @@ class _AppFilterScreenState extends State<AppFilterScreen> {
             .where((a) => a.label.toLowerCase().contains(_query.toLowerCase()))
             .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Приложения')),
+      appBar: AppBar(title: Text(t(context, 'filter.title'))),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Поиск…',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: t(context, 'filter.search'),
+                border: const OutlineInputBorder(),
               ),
               onChanged: (v) => setState(() => _query = v),
             ),

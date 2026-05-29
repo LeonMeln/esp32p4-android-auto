@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../ble/ble_service.dart';
 import '../bridge/notification_bridge.dart';
+import '../i18n/strings.dart';
 import 'app_filter_screen.dart';
 import 'pairing_screen.dart';
 import 'test_panel.dart';
@@ -48,17 +49,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Забыть устройство?'),
-        content: const Text(
-            'Авто-подключение отключится. Чтобы снова подключиться, '
-            'придётся пройти pairing заново.'),
+        title: Text(t(context, 'home.forget.confirm.title')),
+        content: Text(t(context, 'home.forget.confirm.body')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Отмена')),
+              child: Text(t(context, 'home.forget.cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Забыть')),
+              child: Text(t(context, 'home.forget.ok'))),
         ],
       ),
     );
@@ -67,10 +66,50 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _showLanguagePicker() {
+    final notifier = LocaleScope.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(t(context, 'lang.choose'),
+                  style: Theme.of(context).textTheme.titleLarge),
+            ),
+            for (final l in supportedLocales)
+              RadioListTile<String>(
+                value: l.languageCode,
+                groupValue: notifier.locale.languageCode,
+                title: Text(t(context, 'lang.${l.languageCode}')),
+                onChanged: (v) async {
+                  if (v == null) return;
+                  await notifier.set(Locale(v));
+                  if (mounted) Navigator.pop(ctx);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final saved = BleService.instance.savedRemoteId;
     return Scaffold(
-      appBar: AppBar(title: const Text('AA Bridge')),
+      appBar: AppBar(
+        title: Text(t(context, 'app.title')),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.translate),
+            tooltip: t(context, 'home.lang.title'),
+            onPressed: _showLanguagePicker,
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -83,10 +122,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   _notifPermission ? Icons.check_circle : Icons.warning_amber,
                   color: _notifPermission ? Colors.green : Colors.orange,
                 ),
-                title: const Text('Доступ к уведомлениям'),
+                title: Text(t(context, 'home.notif.title')),
                 subtitle: Text(_notifPermission
-                    ? 'Разрешено'
-                    : 'Нужно разрешить в системных настройках'),
+                    ? t(context, 'home.notif.granted')
+                    : t(context, 'home.notif.denied')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
                   await _notifBridge.openPermissionSettings();
@@ -97,36 +136,35 @@ class _HomeScreenState extends State<HomeScreen> {
             Card(
               child: ListTile(
                 leading: Icon(
-                  _batteryUnrestricted ? Icons.check_circle : Icons.battery_alert,
+                  _batteryUnrestricted
+                      ? Icons.check_circle
+                      : Icons.battery_alert,
                   color: _batteryUnrestricted ? Colors.green : Colors.orange,
                 ),
-                title: const Text('Без энергосбережения'),
+                title: Text(t(context, 'home.batt.title')),
                 subtitle: Text(_batteryUnrestricted
-                    ? 'ОС не будет душить BLE-соединение'
-                    : 'Без этого ОС отключит BLE через ~30 мин в фоне'),
+                    ? t(context, 'home.batt.granted')
+                    : t(context, 'home.batt.denied')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: _requestBatteryOptOut,
               ),
             ),
           ] else
-            const Card(
+            Card(
               child: ListTile(
-                leading: Icon(Icons.info_outline),
-                title: Text('iOS режим'),
-                subtitle: Text(
-                    'На iOS уведомления приложений не пересылаются (sandbox). '
-                    'Доступно только pairing и media-метаданные собственного '
-                    'приложения.'),
+                leading: const Icon(Icons.info_outline),
+                title: Text(t(context, 'home.ios.title')),
+                subtitle: Text(t(context, 'home.ios.body')),
               ),
             ),
           const SizedBox(height: 8),
           Card(
             child: ListTile(
               leading: const Icon(Icons.bluetooth_searching),
-              title: const Text('Pairing с head unit'),
-              subtitle: Text(BleService.instance.savedRemoteId == null
-                  ? 'Устройство не выбрано'
-                  : 'Сохранено: ${BleService.instance.savedRemoteId}'),
+              title: Text(t(context, 'home.pairing.title')),
+              subtitle: Text(saved == null
+                  ? t(context, 'home.pairing.none')
+                  : '${t(context, 'home.pairing.saved')}$saved'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.push(
                 context,
@@ -138,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.filter_alt_outlined),
-                title: const Text('Какие приложения транслировать'),
+                title: Text(t(context, 'home.filter.title')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(
                   context,
@@ -163,7 +201,7 @@ class _StatusCard extends StatelessWidget {
     return StreamBuilder<BleConnState>(
       stream: BleService.instance.state,
       initialData: BleService.instance.currentState,
-      builder: (context, snap) {
+      builder: (ctx, snap) {
         final state = snap.data ?? BleConnState.idle;
         final connected = state == BleConnState.connected;
         final hasSaved = BleService.instance.savedRemoteId != null;
@@ -181,8 +219,10 @@ class _StatusCard extends StatelessWidget {
                   color: connected ? Colors.green : Colors.grey,
                   size: 32,
                 ),
-                title: Text(connected ? 'Подключено' : 'Не подключено'),
-                subtitle: Text(_label(state)),
+                title: Text(connected
+                    ? t(context, 'home.status.connected')
+                    : t(context, 'home.status.disconnected')),
+                subtitle: Text(_label(context, state)),
               ),
               if (hasSaved)
                 Padding(
@@ -193,7 +233,7 @@ class _StatusCard extends StatelessWidget {
                       TextButton.icon(
                         onPressed: onForget,
                         icon: const Icon(Icons.link_off, size: 18),
-                        label: const Text('Забыть устройство'),
+                        label: Text(t(context, 'home.forget')),
                       ),
                     ],
                   ),
@@ -205,12 +245,11 @@ class _StatusCard extends StatelessWidget {
     );
   }
 
-  String _label(BleConnState s) => switch (s) {
-        BleConnState.idle => 'BLE простой',
-        BleConnState.scanning => 'Сканирую…',
-        BleConnState.connecting => 'Подключаюсь…',
-        BleConnState.connected => 'Соединение установлено',
-        BleConnState.disconnected =>
-          'Соединение потеряно, жду пока устройство появится в эфире…',
+  String _label(BuildContext c, BleConnState s) => switch (s) {
+        BleConnState.idle => t(c, 'home.state.idle'),
+        BleConnState.scanning => t(c, 'home.state.scanning'),
+        BleConnState.connecting => t(c, 'home.state.connecting'),
+        BleConnState.connected => t(c, 'home.state.connected'),
+        BleConnState.disconnected => t(c, 'home.state.disconnected'),
       };
 }

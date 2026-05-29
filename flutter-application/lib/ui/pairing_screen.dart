@@ -3,6 +3,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../ble/ble_service.dart';
+import '../i18n/strings.dart';
 
 class PairingScreen extends StatefulWidget {
   const PairingScreen({super.key});
@@ -43,8 +44,9 @@ class _PairingScreenState extends State<PairingScreen> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t(context, 'pairing.error')}$e')),
+      );
     }
   }
 
@@ -52,7 +54,7 @@ class _PairingScreenState extends State<PairingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Поиск head unit'),
+        title: Text(t(context, 'pairing.title')),
         actions: [
           IconButton(
             onPressed: _scanning ? null : _scan,
@@ -69,11 +71,10 @@ class _PairingScreenState extends State<PairingScreen> {
               child: Text(_error!, style: const TextStyle(color: Colors.red)),
             ),
           if (!_scanning && _results.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(24),
+            Padding(
+              padding: const EdgeInsets.all(24),
               child: Text(
-                'Нажмите «обновить» чтобы начать сканирование. '
-                'Head unit должен быть рядом и в режиме advertising.',
+                t(context, 'pairing.empty'),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -86,7 +87,7 @@ class _PairingScreenState extends State<PairingScreen> {
                     ? r.advertisementData.advName
                     : (r.device.platformName.isNotEmpty
                         ? r.device.platformName
-                        : 'Безымянное');
+                        : t(context, 'pairing.unnamed'));
                 return ListTile(
                   leading: const Icon(Icons.bluetooth),
                   title: Text(name),
