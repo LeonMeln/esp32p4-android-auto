@@ -7,6 +7,7 @@ import '../ble/ble_service.dart';
 import '../bridge/notification_bridge.dart';
 import 'app_filter_screen.dart';
 import 'pairing_screen.dart';
+import 'test_panel.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -145,6 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+          const SizedBox(height: 8),
+          const TestPanel(),
         ],
       ),
     );

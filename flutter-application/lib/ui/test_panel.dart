@@ -1,0 +1,197 @@
+import 'package:flutter/material.dart';
+
+import '../ble/ble_service.dart';
+import '../ble/messages.dart';
+
+/// Sends fake notifications / media frames over BLE without involving
+/// the system listener. Lets us verify the head unit's parser and LVGL
+/// toast without waiting for a real WhatsApp ping.
+class TestPanel extends StatefulWidget {
+  const TestPanel({super.key});
+  @override
+  State<TestPanel> createState() => _TestPanelState();
+}
+
+class _TestPanelState extends State<TestPanel> {
+  int _idSeed = 1;
+
+  // Local media-mock state — pretends to be a player so the head unit
+  // sees plausible title/artist/position transitions.
+  static const _tracks = [
+    (title: 'Sunset Drive', artist: 'Synthwave Bot', album: 'Bench Sessions',
+        duration: 213000),
+    (title: 'Neon Heart', artist: 'CRT King', album: 'Phosphor', duration: 187000),
+    (title: 'Cold Boot', artist: 'JTAG / Yann', album: 'EPROM', duration: 245000),
+  ];
+  int _trackIdx = 0;
+  bool _playing = false;
+  int _positionMs = 0;
+
+  bool get _connected =>
+      BleService.instance.currentState == BleConnState.connected;
+
+  Future<void> _sendNotif(NotificationMsg n) async {
+    if (!_connected) return _toast('Не подключено к head unit');
+    await BleService.instance.sendNotification(n);
+    _toast('Отправлено: ${n.title}');
+  }
+
+  Future<void> _sendMedia() async {
+    if (!_connected) return _toast('Не подключено к head unit');
+    final t = _tracks[_trackIdx];
+    await BleService.instance.sendMedia(MediaMsg(
+      title: t.title,
+      artist: t.artist,
+      album: t.album,
+      durationMs: t.duration,
+      positionMs: _positionMs,
+      isPlaying: _playing,
+      albumArtHash: 0,
+      sourceApp: 'com.test.player',
+    ));
+  }
+
+  void _toast(String s) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(s), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  Future<void> _testWhatsapp() => _sendNotif(NotificationMsg(
+        id: _idSeed++,
+        package: 'com.whatsapp',
+        appName: 'WhatsApp',
+        title: 'Аня',
+        text: 'Где ты? Я приехала',
+        postedAtMs: DateTime.now().millisecondsSinceEpoch,
+        iconHash: 0,
+      ));
+
+  Future<void> _testTelegram() => _sendNotif(NotificationMsg(
+        id: _idSeed++,
+        package: 'org.telegram.messenger',
+        appName: 'Telegram',
+        title: 'Чат проекта',
+        text: 'Серёжа: смотри, новая прошивка собралась',
+        postedAtMs: DateTime.now().millisecondsSinceEpoch,
+        iconHash: 0,
+      ));
+
+  Future<void> _testLong() => _sendNotif(NotificationMsg(
+        id: _idSeed++,
+        package: 'com.test.long',
+        appName: 'Тест длинный',
+        title: 'Длинное название уведомления для проверки переноса',
+        text:
+            'А это сам текст: проверяем что LVGL label с LONG_DOT режимом '
+            'обрезает строку, не ломая UI. Тут специально много букв.',
+        postedAtMs: DateTime.now().millisecondsSinceEpoch,
+        iconHash: 0,
+      ));
+
+  Future<void> _mediaPlay() async {
+    setState(() => _playing = true);
+    await _sendMedia();
+    _toast('▶ ${_tracks[_trackIdx].title}');
+  }
+
+  Future<void> _mediaPause() async {
+    setState(() => _playing = false);
+    await _sendMedia();
+    _toast('⏸ ${_tracks[_trackIdx].title}');
+  }
+
+  Future<void> _mediaNext() async {
+    setState(() {
+      _trackIdx = (_trackIdx + 1) % _tracks.length;
+      _positionMs = 0;
+    });
+    await _sendMedia();
+    _toast('⏭ ${_tracks[_trackIdx].title}');
+  }
+
+  Future<void> _mediaPrev() async {
+    setState(() {
+      _trackIdx = (_trackIdx - 1 + _tracks.length) % _tracks.length;
+      _positionMs = 0;
+    });
+    await _sendMedia();
+    _toast('⏮ ${_tracks[_trackIdx].title}');
+  }
+
+  Future<void> _mediaSeek() async {
+    setState(() {
+      final dur = _tracks[_trackIdx].duration;
+      _positionMs = (_positionMs + 30000) % dur;
+    });
+    await _sendMedia();
+    _toast('Seek +30s');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final track = _tracks[_trackIdx];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4, left: 4),
+              child: Text('Тест уведомлений',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _testWhatsapp,
+                  icon: const Icon(Icons.chat),
+                  label: const Text('WhatsApp'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _testTelegram,
+                  icon: const Icon(Icons.send),
+                  label: const Text('Telegram'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _testLong,
+                  icon: const Icon(Icons.subject),
+                  label: const Text('Длинный текст'),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 4),
+              child: Text('Тест медиа · ${track.artist} — ${track.title}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            Row(
+              children: [
+                IconButton.filledTonal(
+                    onPressed: _mediaPrev,
+                    icon: const Icon(Icons.skip_previous)),
+                const SizedBox(width: 4),
+                IconButton.filledTonal(
+                    onPressed: _playing ? _mediaPause : _mediaPlay,
+                    icon: Icon(_playing ? Icons.pause : Icons.play_arrow)),
+                const SizedBox(width: 4),
+                IconButton.filledTonal(
+                    onPressed: _mediaNext, icon: const Icon(Icons.skip_next)),
+                const SizedBox(width: 12),
+                FilledButton.tonalIcon(
+                  onPressed: _mediaSeek,
+                  icon: const Icon(Icons.fast_forward),
+                  label: const Text('+30s'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

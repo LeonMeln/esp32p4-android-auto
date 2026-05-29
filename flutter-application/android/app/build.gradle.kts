@@ -8,11 +8,15 @@ plugins {
 android {
     namespace = "com.aabridge.aa_bridge"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // flutter_local_notifications drags in a desugar dep that requires NDK 27.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // Required by flutter_local_notifications on minSdk < 26 — pulls
+        // ZoneId/LocalDateTime back into the older Android runtime.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -39,6 +43,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {
