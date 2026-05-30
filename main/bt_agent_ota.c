@@ -166,7 +166,7 @@ static esp_err_t do_flash_image(char *err_buf, size_t err_buf_len,
     }
     free(staging);
 
-    ota_screen_set_status("Verifying…");
+    ota_screen_set_status("Verifying...");
     lvgl_pulse_if_paused(lvgl_paused);
     /* Pass true → reboot into the new app. Library handles the reset. */
     if (esp_loader_flash_finish(true) != ESP_LOADER_SUCCESS) {
@@ -193,6 +193,17 @@ esp_err_t bt_agent_ota_check_and_update(void)
 
     if (actual && strcmp(actual, expected) == 0) {
         ESP_LOGI(TAG, "agent ver=%s matches — OTA skipped", actual);
+        bt_link_set_quiet(false);
+        return ESP_OK;
+    }
+
+    /* No BT-VER: AND zero bytes ever seen on the UART → module is either
+     * not wired up or completely dead. Flashing would also fail at SYNC
+     * (no response from the ROM) after ~30 s of retries and leave the user
+     * staring at an error overlay for nothing. Bail out quietly. */
+    if (!actual && bt_agent_rx_byte_count() == 0) {
+        ESP_LOGW(TAG, "no UART activity from agent — skipping OTA "
+                      "(module unplugged or unresponsive)");
         bt_link_set_quiet(false);
         return ESP_OK;
     }

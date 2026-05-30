@@ -123,6 +123,16 @@ const char *bt_agent_wait_version(uint32_t timeout_ms)
     return (bits & AGENT_EV_VERSION_BIT) ? s_agent_ver : NULL;
 }
 
+/* Bumped by rx_task on every successful uart_read_bytes; read by bt_agent_ota
+ * to tell "agent boot-looping / wrong fw" (some bytes arriving) apart from
+ * "module silent / unwired" (no bytes at all). */
+static volatile uint32_t s_rx_bytes;
+
+uint32_t bt_agent_rx_byte_count(void)
+{
+    return s_rx_bytes;
+}
+
 /* RX task: reads everything the BT agent sends us and prints it on this
  * board's console. Lines are categorised by prefix:
  *   BT-LOG:<...>  → forwarded as `[BT]<...>` so all BT-agent ESP_LOG output
@@ -139,6 +149,7 @@ static void rx_task(void *arg)
         uint8_t buf[64];
         int n = uart_read_bytes(UART_PORT, buf, sizeof(buf), pdMS_TO_TICKS(200));
         if (n <= 0) continue;
+        s_rx_bytes += (uint32_t)n;
         for (int i = 0; i < n; i++) {
             char c = (char)buf[i];
             if (c == '\n' || c == '\r') {
@@ -279,6 +290,20 @@ void bt_link_set_auto_reconnect(bool on)
     if (n <= 0 || n >= (int)sizeof(line)) return;
     uart_write_bytes(UART_PORT, line, n);
     ESP_LOGI(TAG, "→ BT agent: AUTO_RECONNECT=%d", on ? 1 : 0);
+}
+
+void bt_link_request_aa_reconnect(void)
+{
+    static const char line[] = "AA_RECONNECT\n";
+    uart_write_bytes(UART_PORT, line, sizeof(line) - 1);
+    ESP_LOGI(TAG, "→ BT agent: AA_RECONNECT");
+}
+
+void bt_link_request_connect_now(void)
+{
+    static const char line[] = "BT_CONNECT\n";
+    uart_write_bytes(UART_PORT, line, sizeof(line) - 1);
+    ESP_LOGI(TAG, "→ BT agent: BT_CONNECT");
 }
 
 void bt_link_publish_wifi(const char *ssid, const char *password,
