@@ -24,6 +24,8 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "esp_heap_caps.h"
+#include "driver/jpeg_decode.h"
 
 #include "notif_bridge.h"
 #include "fonts/aabridge_fonts.h"
@@ -31,10 +33,27 @@
 static const char *TAG = "music_info_view";
 
 #define POLL_PERIOD_MS    400
-#define TILE_W            350
-#define TILE_H            135
-/* The phone resizes album art to exactly TILE_W×TILE_H (cover-fit + crop)
- * before sending — LVGL draws the PNG at 1:1, no zoom. */
+/* Visible art tile dimensions. Widget is sized down to ART_MCU_W on
+ * the width axis so it stays equal-to-or-narrower than the decoded
+ * frame — lv_img tiles a smaller-than-widget source and we'd see
+ * adjacent edge tiles instead of clean crop. */
+#define TILE_W            344
+#define TILE_H            136
+
+/* JPEG hardware output is RGB565 = 2 bytes/px. The P4 decoder rounds
+ * OUTPUT up to 16 on BOTH axes — any 344×136 input becomes 352×144 in
+ * the output buffer (right 8 cols and bottom 8 rows are padding). The
+ * buffer is sized to that 16×16-aligned frame; the lv_img widget at
+ * TILE_W×TILE_H stays smaller-or-equal and crops the visible area to
+ * the real decoded pixels. */
+#define ART_MCU_W         352
+#define ART_MCU_H         144
+#define ART_BUF_SIZE      (ART_MCU_W * ART_MCU_H * 2)
+
+static jpeg_decoder_handle_t s_jpgd_handle;
+static uint8_t *s_art_decoded;          /* RGB565, 350×135 visible inside 352×144 */
+static uint8_t *s_jpeg_scratch;         /* DMA-aligned input copy */
+static size_t   s_jpeg_scratch_cap;
 
 static lv_obj_t *s_root;
 static lv_obj_t *s_art_img;
@@ -77,27 +96,78 @@ static void show_art(void)
     lv_obj_add_flag(s_art_glyph, LV_OBJ_FLAG_HIDDEN);
 }
 
+static bool ensure_jpeg_scratch(size_t need)
+{
+    if (need <= s_jpeg_scratch_cap) return true;
+    if (s_jpeg_scratch) heap_caps_free(s_jpeg_scratch);
+    /* JPEG hardware reads via DMA — input must be cache-aligned. PSRAM
+     * is fine, the engine internally bursts through cache. */
+    size_t alloc = (need + 1023) & ~1023u;
+    s_jpeg_scratch = heap_caps_aligned_calloc(64, 1, alloc,
+                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+    if (!s_jpeg_scratch) {
+        s_jpeg_scratch_cap = 0;
+        return false;
+    }
+    s_jpeg_scratch_cap = alloc;
+    return true;
+}
+
+static bool decode_art_jpeg(const uint8_t *src, size_t len)
+{
+    if (!s_jpgd_handle || !s_art_decoded) return false;
+    if (!ensure_jpeg_scratch(len)) return false;
+    memcpy(s_jpeg_scratch, src, len);
+
+    jpeg_decode_cfg_t cfg = {
+        .output_format = JPEG_DECODE_OUT_FORMAT_RGB565,
+        /* BGR matches what the ST7701 / LVGL RGB565 pipeline expects on
+         * this board — RGB order would surface as red/blue swap. */
+        .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR,
+    };
+    uint32_t out_size = 0;
+    esp_err_t r = jpeg_decoder_process(s_jpgd_handle, &cfg,
+                                       s_jpeg_scratch, len,
+                                       s_art_decoded, ART_BUF_SIZE,
+                                       &out_size);
+    if (r != ESP_OK) {
+        ESP_LOGW(TAG, "jpeg decode failed: %s", esp_err_to_name(r));
+        return false;
+    }
+    return true;
+}
+
 static void apply_art(uint32_t hash)
 {
     if (hash == s_last_art_hash) return;
 
     size_t len = 0;
-    const uint8_t *png = hash ? notif_bridge_get_icon(hash, &len) : NULL;
-    if (png && len > 0) {
+    const uint8_t *bytes = hash ? notif_bridge_get_icon(hash, &len) : NULL;
+    if (bytes && len > 0 && decode_art_jpeg(bytes, len)) {
         s_art_dsc.header.always_zero = 0;
-        s_art_dsc.header.w = 0;
-        s_art_dsc.header.h = 0;
-        s_art_dsc.header.cf = LV_IMG_CF_RAW_ALPHA;
-        s_art_dsc.data = png;
-        s_art_dsc.data_size = len;
+        s_art_dsc.header.w = ART_MCU_W;
+        s_art_dsc.header.h = ART_MCU_H;
+        s_art_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+        s_art_dsc.data = s_art_decoded;
+        s_art_dsc.data_size = ART_BUF_SIZE;
+        /* dsc pointer is reused per track — drop any cached decode of
+         * the previous bitmap before we hand LVGL the new pixels. */
+        lv_img_cache_invalidate_src(&s_art_dsc);
         lv_img_set_src(s_art_img, &s_art_dsc);
         show_art();
-        ESP_LOGI(TAG, "art hash=0x%08X len=%u", (unsigned)hash, (unsigned)len);
+        ESP_LOGI(TAG, "art hash=0x%08X jpeg_len=%u → %dx%d rgb565",
+                 (unsigned)hash, (unsigned)len, ART_MCU_W, ART_MCU_H);
+    } else if (bytes && len > 0) {
+        /* Decode failed — keep whatever was on screen and don't update
+         * s_last_art_hash so we retry on the next tick. */
+        ESP_LOGW(TAG, "art hash=0x%08X len=%u — decode rejected",
+                 (unsigned)hash, (unsigned)len);
+        return;
     } else {
         show_fallback();
         if (hash != 0) {
-            /* Cache miss — nudge the phone to resend the PNG. The next
-             * media tick will deliver it and apply_art() will swap it in. */
+            /* Cache miss — nudge the phone to resend the bytes. The
+             * next media tick will deliver it. */
             notif_bridge_send_cmd(NOTIF_OP_REQUEST_ART, hash);
         }
     }
@@ -160,11 +230,38 @@ static void poll_cb(lv_timer_t *t)
     apply_art(m->album_art_hash);
 }
 
+static esp_err_t init_jpeg_pipeline(void)
+{
+    if (s_jpgd_handle) return ESP_OK;
+    jpeg_decode_engine_cfg_t cfg = {
+        .intr_priority = 0,
+        .timeout_ms    = 200,
+    };
+    esp_err_t r = jpeg_new_decoder_engine(&cfg, &s_jpgd_handle);
+    if (r != ESP_OK) {
+        ESP_LOGE(TAG, "jpeg engine init failed: %s", esp_err_to_name(r));
+        return r;
+    }
+    s_art_decoded = heap_caps_aligned_calloc(64, 1, ART_BUF_SIZE,
+                                             MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+    if (!s_art_decoded) {
+        ESP_LOGE(TAG, "no PSRAM for %u-byte art buffer", (unsigned)ART_BUF_SIZE);
+        jpeg_del_decoder_engine(s_jpgd_handle);
+        s_jpgd_handle = NULL;
+        return ESP_ERR_NO_MEM;
+    }
+    ESP_LOGI(TAG, "jpeg pipeline ready, %u-byte rgb565 framebuffer",
+             (unsigned)ART_BUF_SIZE);
+    return ESP_OK;
+}
+
 esp_err_t music_info_view_attach(lv_obj_t *parent)
 {
     if (!parent) return ESP_ERR_INVALID_ARG;
     if (s_root) return ESP_OK;
     s_root = parent;
+
+    init_jpeg_pipeline();
 
     lv_obj_clear_flag(s_root, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_all(s_root, 0, LV_PART_MAIN);
@@ -219,7 +316,7 @@ esp_err_t music_info_view_attach(lv_obj_t *parent)
     lv_obj_set_size(s_overlay, TILE_W, TILE_H);
     lv_obj_align(s_overlay, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_bg_color(s_overlay, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(s_overlay, LV_OPA_50, 0);
+    lv_obj_set_style_bg_opa(s_overlay, LV_OPA_20, 0);
     lv_obj_set_style_border_width(s_overlay, 0, 0);
     lv_obj_set_style_radius(s_overlay, 18, 0);
     lv_obj_set_style_clip_corner(s_overlay, true, 0);
@@ -243,23 +340,22 @@ esp_err_t music_info_view_attach(lv_obj_t *parent)
      * carried by the bottom black band created above. */
     s_title_lbl = lv_label_create(s_root);
     lv_obj_set_style_text_color(s_title_lbl, lv_color_white(), 0);
-    lv_obj_set_style_text_font(s_title_lbl, &aabridge_font_32, 0);
+    lv_obj_set_style_text_font(s_title_lbl, &aabridge_font_24, 0);
     lv_obj_set_style_text_align(s_title_lbl, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_long_mode(s_title_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(s_title_lbl, TILE_W - 28);
-    /* Labels track the centered art band — outer offset matches the
-     * (tile - art) / 2 gap plus a small inner padding, so they begin at
-     * the art's left edge instead of clinging to the tile's. */
-    lv_obj_align(s_title_lbl, LV_ALIGN_BOTTOM_MID, 0, -32);
+    /* Bottom-anchored offsets sized to font 24 (≈28 px line height) —
+     * artist sits 4 px from the bottom, title 28 px above that. */
+    lv_obj_align(s_title_lbl, LV_ALIGN_BOTTOM_MID, 0, -28);
     lv_label_set_text(s_title_lbl, "—");
 
     s_artist_lbl = lv_label_create(s_root);
     lv_obj_set_style_text_color(s_artist_lbl, lv_color_hex(0xe0e0e0), 0);
-    lv_obj_set_style_text_font(s_artist_lbl, &aabridge_font_32, 0);
+    lv_obj_set_style_text_font(s_artist_lbl, &aabridge_font_24, 0);
     lv_obj_set_style_text_align(s_artist_lbl, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_long_mode(s_artist_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(s_artist_lbl, TILE_W - 28);
-    lv_obj_align(s_artist_lbl, LV_ALIGN_BOTTOM_MID, 0, -6);
+    lv_obj_align(s_artist_lbl, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_label_set_text(s_artist_lbl, "");
 
     s_poll = lv_timer_create(poll_cb, POLL_PERIOD_MS, NULL);

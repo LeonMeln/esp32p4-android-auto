@@ -50,6 +50,7 @@ idf_component_register(
         esp_lcd
         esp_mm
         esp_driver_ppa
+        esp_driver_jpeg
         lwip
         mdns
         mbedtls

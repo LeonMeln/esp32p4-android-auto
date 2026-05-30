@@ -2301,8 +2301,8 @@ void setup_scr_dashboard(lv_ui *ui)
     //Write codes dashboard_music_info
     ui->dashboard_music_info = lv_tileview_create(ui->dashboard);
     ui->dashboard_music_info_tile = lv_tileview_add_tile(ui->dashboard_music_info, 0, 0, LV_DIR_RIGHT);
-    lv_obj_set_pos(ui->dashboard_music_info, 183, 262);
-    lv_obj_set_size(ui->dashboard_music_info, 435, 135);
+    lv_obj_set_pos(ui->dashboard_music_info, 183, 261);
+    lv_obj_set_size(ui->dashboard_music_info, 434, 136);
     lv_obj_set_scrollbar_mode(ui->dashboard_music_info, LV_SCROLLBAR_MODE_OFF);
 
     //Write style for dashboard_music_info, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.

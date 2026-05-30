@@ -144,7 +144,14 @@
  *With complex image decoders (e.g. PNG or JPG) caching can save the continuous open/decode of images.
  *However the opened images might consume additional RAM.
  *0: to disable caching*/
-#define LV_IMG_CACHE_DEF_SIZE 0
+/* Bumped from 0 so PNG-backed images (album art 350×135, app icons
+ * 72×72) aren't re-decoded on every redraw — that was visibly stalling
+ * the LVGL task on heavy frames. Slots: 1 art + 1 toast icon + headroom
+ * for the LRU of recently-shown app icons. Each entry holds the
+ * decoded ARGB bitmap (~190 KB for album art) in PSRAM. We invalidate
+ * a slot via lv_img_cache_invalidate_src() whenever we mutate the
+ * underlying lv_img_dsc_t.data so a stale decode never lingers. */
+#define LV_IMG_CACHE_DEF_SIZE 4
 
 /*Number of stops allowed per gradient. Increase this to allow more stops.
  *This adds (sizeof(lv_color_t) + 1) bytes per additional stop*/

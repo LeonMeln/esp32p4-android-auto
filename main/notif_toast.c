@@ -68,6 +68,9 @@ static void show_icon_png(const uint8_t *png, size_t len)
     s_icon_dsc.header.cf = LV_IMG_CF_RAW_ALPHA;
     s_icon_dsc.data = png;
     s_icon_dsc.data_size = len;
+    /* Same dsc pointer is reused per notification — drop the cache
+     * entry so the new icon isn't masked by a previous decode. */
+    lv_img_cache_invalidate_src(&s_icon_dsc);
     lv_img_set_src(s_icon_img, &s_icon_dsc);
     lv_obj_center(s_icon_img);
     lv_obj_clear_flag(s_icon_img, LV_OBJ_FLAG_HIDDEN);

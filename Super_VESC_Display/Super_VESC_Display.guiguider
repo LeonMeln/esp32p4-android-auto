@@ -278,12 +278,12 @@
 					"id": "ff49u81o",
 					"type": "tileview",
 					"left": 183,
-					"top": 262,
+					"top": 261,
 					"visible": true,
 					"isLock": false,
 					"flag": [],
-					"width": 435,
-					"height": 135,
+					"width": 434,
+					"height": 136,
 					"default_style": false,
 					"scrollbar_mode": "OFF",
 					"direction": "horizon",
@@ -20209,11 +20209,11 @@
 						"flag": [],
 						"pos": [
 							183,
-							262
+							261
 						],
 						"size": [
-							435,
-							135
+							434,
+							136
 						],
 						"default_style": false,
 						"tile_count": 1,
@@ -20378,12 +20378,12 @@
 														"id": "ff49u81o",
 														"type": "tileview",
 														"left": 183,
-														"top": 262,
+														"top": 261,
 														"visible": true,
 														"isLock": false,
 														"flag": [],
-														"width": 435,
-														"height": 135,
+														"width": 434,
+														"height": 136,
 														"default_style": false,
 														"scrollbar_mode": "OFF",
 														"direction": "horizon",

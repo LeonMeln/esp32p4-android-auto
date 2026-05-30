@@ -160,13 +160,18 @@ object MediaListener {
 
     private fun bitmapToPng(b: Bitmap?): ByteArray? {
         if (b == null) return null
-        // Produce a 350×135 PNG sized exactly for the head unit's music
-        // tile — LVGL renders it 1:1, no zoom-cover hack needed. Single
-        // Canvas draw with cover-fit matrix: scale to max(dst/src) so
-        // the destination is fully filled, then center the result; the
-        // canvas clips whatever leaks past 350×135.
-        val dstW = 350
-        val dstH = 135
+        // Produce a 352×136 JPEG sized exactly for the head unit's
+        // music tile. JPEG (q85) for photographic content runs ~4-5×
+        // smaller than PNG, and the P4 has a hardware JPEG decoder so
+        // the head unit blits it once into a RGB565 framebuffer
+        // instead of re-decoding per frame. Dimensions are 8-aligned
+        // (P4 JPEG hardware accepts 8-aligned input and rounds its
+        // RGB565 output up to 16 internally — the head unit allocates
+        // a 352×144 output buffer to absorb the rounding); lv_img
+        // 350×135 crops the small overhang. No alpha needed — album
+        // art is opaque.
+        val dstW = 344
+        val dstH = 136
         val out = Bitmap.createBitmap(dstW, dstH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         val sx = dstW.toFloat() / b.width
@@ -180,7 +185,7 @@ object MediaListener {
         }
         canvas.drawBitmap(b, m, Paint(Paint.FILTER_BITMAP_FLAG))
         val bytes = ByteArrayOutputStream()
-        out.compress(Bitmap.CompressFormat.PNG, 100, bytes)
+        out.compress(Bitmap.CompressFormat.JPEG, 85, bytes)
         return bytes.toByteArray()
     }
 
