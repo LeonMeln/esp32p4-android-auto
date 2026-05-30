@@ -45,6 +45,13 @@ const char *bt_agent_get_version(void);
  * NULL on timeout. Used by bt_agent_ota to gate the version comparison. */
 const char *bt_agent_wait_version(uint32_t timeout_ms);
 
+/* Total bytes rx_task has received from the agent since boot. Used by
+ * bt_agent_ota: if wait_version() times out AND this is still 0, the
+ * module is silent (likely not connected / dead) and reflashing it would
+ * also fail at SYNC — so we skip the OTA entirely instead of burning 30 s
+ * on a doomed flash attempt. */
+uint32_t bt_agent_rx_byte_count(void);
+
 void bt_link_init(void);
 
 /* Tear down UART driver so esp_serial_flasher can take over the port.
@@ -74,3 +81,17 @@ void bt_link_publish_wifi(const char *ssid, const char *password,
  * the value survives across agent reboots without P4 having to re-send it
  * every boot — we still re-send on each P4 boot for safety. */
 void bt_link_set_auto_reconnect(bool on);
+
+/* Ask the BT agent to kick the BT link so gearhead re-initiates AA. Called
+ * by tcp_server right after the AA TCP session ends — the agent bounces
+ * HFP (and through its auto-reconnect task pages the phone back), which
+ * triggers a fresh SPP → WifiStartRequest cycle and a new AA TCP session.
+ * Caller is expected to gate on settings_get_aa_autoconnect(); the agent
+ * itself also honours the same toggle so a stale call is harmless. */
+void bt_link_request_aa_reconnect(void);
+
+/* Manual "Connect" — user tapped the button on the idle screen. The agent
+ * unconditionally HFP-pages the last paired phone regardless of the
+ * auto-reconnect toggle. No-op on the agent side if no phone is paired
+ * yet, so this is safe to wire to a button that's always visible. */
+void bt_link_request_connect_now(void);
