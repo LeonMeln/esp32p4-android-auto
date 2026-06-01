@@ -132,6 +132,14 @@ CONFIG_ESPTOOLPY_FLASHFREQ_120M=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+# Flash erase/program suspend stays OFF. This GD25Q256 reports JEDEC id
+# 0xC84019, which is NOT in IDF's GD suspend whitelist (spi_flash_chip_gd.c
+# lists only 0xC84016/17/18 and 0xC84319). With AUTO_SUSPEND=y,
+# esp_flash_suspend_cmd_init() returns NOT_SUPPORTED so the feature never
+# engages — it only spams "Suspend and resume may not supported for this
+# flash model yet" every boot. NVS-erase render stalls are mitigated by
+# debounced/deferred nvs_commit() off the LVGL thread instead.
+CONFIG_SPI_FLASH_AUTO_SUSPEND=n
 
 # ===== Android Auto head unit =====
 # Default role AP: head unit runs SoftAP, phone joins it (production —
