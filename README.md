@@ -47,6 +47,17 @@ Cycleway projects onto the same screen. No phone app required.
 
 ![Android Auto Cycleway navigation projected on the same screen](docs/images/aa-bonus.jpg)
 
+### 📱 Companion app (optional)
+`aa_bridge` — a small Flutter app ([`flutter-application/`](flutter-application/))
+that talks to the head unit over BLE, independently of Android Auto:
+- **Notification & media bridge** — phone notifications and now-playing
+  metadata / album art mirrored onto the dashboard.
+- **Wall clock** — pushes local time over BLE so the dashboard shows `HH:MM`
+  with no on-device RTC / coin cell.
+- **Firmware update over WiFi** — the P4 image is bundled in the APK and
+  flashed to the head unit over its SoftAP, straight from the phone. Creds
+  are read over BLE automatically, or entered / scanned manually.
+
 ### 📦 Under the hood
 - **Embedded co-firmwares**: ESP32-C6 (`esp-hosted` WiFi slave) and the
   D1 Mini Bluetooth agent are bundled inside the main binary and auto-flashed
@@ -299,6 +310,28 @@ leak through to the phone as a stray touch.
 After the first pairing the head unit remembers the phone, and every
 subsequent power-on auto-reconnects without prompts.
 
+### Companion app (notifications, media, clock, WiFi flashing)
+
+Optional Android app in [`flutter-application/`](flutter-application/). Build
+and install:
+
+```bash
+cd flutter-application
+flutter build apk --release
+adb install -r build/app/outputs/flutter-apk/app-release.apk
+```
+
+- **Pair**: open the app → it scans for the head unit over BLE → tap to
+  connect. Auto-reconnects after that.
+- **Notifications / media**: grant the notification-access permission when
+  prompted; phone notifications + now-playing info appear on the dashboard.
+  The dashboard clock starts showing `HH:MM` once the app is connected.
+- **Update firmware over WiFi**: *Home → Update head unit firmware*. The app
+  reads the SoftAP credentials over BLE (or you scan / type them), joins that
+  WiFi and uploads the firmware bundled in the APK. The head unit verifies and
+  reboots onto the new version — keep it powered throughout. The bundled image
+  is staged from `build/` by [`scripts/stage_firmware_asset.sh`](scripts/stage_firmware_asset.sh).
+
 ---
 
 ## 🗺️ Roadmap / Status
@@ -308,6 +341,8 @@ subsequent power-on auto-reconnects without prompts.
 | VESC RT data over CAN | ✅ | Battery %, speed, voltage, current, temps, odometer |
 | VESC LISP poll | ✅ | Cruise indicator + custom stats (requires [`lisp/main.lisp`](lisp/main.lisp) on the controller) |
 | BLE NUS bridge (VESC Tool over BLE) | ✅ | Works concurrently with AA |
+| Companion app — notifications / media / clock bridge | ✅ | Flutter `aa_bridge` over BLE |
+| Companion app — firmware update over WiFi | ✅ | Bundled image POSTed to the head unit's SoftAP OTA endpoint |
 | Settings UI + PSRAM log viewer | ✅ | Logs survive resets, viewable on device |
 | HTTP OTA + on-screen progress | ✅ | `scripts/ota_push.sh` |
 | (Bonus) AA Wireless video (H.264) | ✅ | Native 800×480 @ ~10–15 fps; SW decode + RGB shuffle is the bottleneck |
