@@ -14,6 +14,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../bridge/foreground_bridge.dart';
+import '../firmware/ota_info.dart';
 import 'messages.dart';
 import 'protocol.dart';
 import 'uuids.dart';
@@ -39,6 +40,9 @@ class BleService {
   // Optional — null when the head unit's firmware predates the time
   // characteristic. We only push the clock when this is non-null.
   BluetoothCharacteristic? _time;
+  // Optional — null when the firmware predates the OTA-from-app feature.
+  // Read on demand from the firmware-update screen.
+  BluetoothCharacteristic? _otaInfo;
   Timer? _clockTimer;
   StreamSubscription<List<int>>? _outSub;
   StreamSubscription<BluetoothConnectionState>? _connSub;
@@ -164,14 +168,14 @@ class BleService {
     _outbound = svc.characteristics.firstWhere(
       (c) => c.uuid.toString().toLowerCase() == NotifBridgeUuids.charOutbound,
     );
-    // Optional characteristic — absent on older firmware. Probe by UUID
-    // and leave _time null if the head unit doesn't advertise it.
+    // Optional characteristics — absent on older firmware. Probe by UUID
+    // and leave the field null if the head unit doesn't advertise it.
     _time = null;
+    _otaInfo = null;
     for (final c in svc.characteristics) {
-      if (c.uuid.toString().toLowerCase() == NotifBridgeUuids.charTime) {
-        _time = c;
-        break;
-      }
+      final u = c.uuid.toString().toLowerCase();
+      if (u == NotifBridgeUuids.charTime) _time = c;
+      if (u == NotifBridgeUuids.charOtaInfo) _otaInfo = c;
     }
     await _outbound!.setNotifyValue(true);
     await _outSub?.cancel();
@@ -200,6 +204,23 @@ class BleService {
     } catch (_) {
       // Transient link hiccup — the next 15 s tick retries; the head unit
       // keeps the last value visible until its 30 s TTL lapses.
+    }
+  }
+
+  /// Whether the connected head unit exposes the OTA-from-app feature.
+  bool get supportsOta => _otaInfo != null;
+
+  /// Read the head unit's SoftAP credentials + OTA endpoint + firmware
+  /// version. Returns null if the firmware lacks the characteristic or the
+  /// read fails / payload is malformed.
+  Future<OtaInfo?> readOtaInfo() async {
+    final ch = _otaInfo;
+    if (ch == null || _state != BleConnState.connected) return null;
+    try {
+      final raw = await ch.read();
+      return OtaInfo.parse(raw);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -253,6 +274,7 @@ class BleService {
     _inbound = null;
     _outbound = null;
     _time = null;
+    _otaInfo = null;
     _setState(BleConnState.idle);
   }
 

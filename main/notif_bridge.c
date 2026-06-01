@@ -20,9 +20,12 @@
 
 #include <string.h>
 
+#include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+
+#include "wifi_manager.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -64,6 +67,15 @@ static const ble_uuid128_t NB_ST_UUID  = BLE_UUID128_INIT(
 static const ble_uuid128_t NB_TIME_UUID = BLE_UUID128_INIT(
     0x05, 0x00, 0x6E, 0x1A, 0x9F, 0x2C, 0x5C, 0x9D,
     0x2A, 0x4D, 0x8E, 0x3F, 0x00, 0x4F, 0x4E, 0x7B);
+/* OTA-INFO char — READ returns the SoftAP credentials + OTA HTTP endpoint
+ * + running firmware version so the companion app can auto-join the head
+ * unit's AP and POST a bundled firmware image to it. Newline-joined UTF-8:
+ *   "<ip>\n<port>\n<ssid>\n<password>\n<version>"
+ * The app probes for this characteristic; firmware without it doesn't
+ * expose ...0006 and the app hides the "update firmware" action. */
+static const ble_uuid128_t NB_OTA_UUID = BLE_UUID128_INIT(
+    0x06, 0x00, 0x6E, 0x1A, 0x9F, 0x2C, 0x5C, 0x9D,
+    0x2A, 0x4D, 0x8E, 0x3F, 0x00, 0x4F, 0x4E, 0x7B);
 
 /* ---------- PDU layer ---------- */
 
@@ -89,7 +101,7 @@ static const ble_uuid128_t NB_TIME_UUID = BLE_UUID128_INIT(
 
 /* ---------- module state ---------- */
 
-static uint16_t s_in_handle, s_out_handle, s_st_handle, s_time_handle;
+static uint16_t s_in_handle, s_out_handle, s_st_handle, s_time_handle, s_ota_handle;
 static uint16_t s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 
 /* Phone-pushed wall clock. The app writes [hour, minute] every 15 s; we
@@ -427,6 +439,28 @@ static int access_cb(uint16_t conn, uint16_t attr,
         portEXIT_CRITICAL(&s_clock_mux);
         return 0;
     }
+    if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR && attr == s_ota_handle) {
+        /* "<ip>\n<port>\n<ssid>\n<password>\n<version>" — the app joins
+         * the SoftAP and POSTs firmware to http://<ip>:<port>/ota. IP is
+         * the SoftAP gateway (fixed 192.168.4.1 by esp_netif default). */
+#ifdef CONFIG_OTA_HTTP_PORT
+        const int ota_port = CONFIG_OTA_HTTP_PORT;
+#else
+        const int ota_port = 80;
+#endif
+        const wifi_ap_info_t *ap = wifi_manager_get_ap_info();
+        const esp_app_desc_t *desc = esp_app_get_description();
+        char info[160];
+        int n = snprintf(info, sizeof(info), "192.168.4.1\n%d\n%s\n%s\n%s",
+                         ota_port,
+                         ap ? ap->ssid : "",
+                         ap ? ap->password : "",
+                         desc ? desc->version : "");
+        if (n < 0) return BLE_ATT_ERR_UNLIKELY;
+        if (n > (int)sizeof(info)) n = sizeof(info);
+        return os_mbuf_append(ctxt->om, info, n) == 0
+            ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
     if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR && attr == s_st_handle) {
         /* Static caps blob: u16 proto version + u16 reserved. */
         static const uint8_t caps[] = { 0x01, 0x00, 0x00, 0x00 };
@@ -466,6 +500,12 @@ static const struct ble_gatt_svc_def s_svcs[] = {
                 .access_cb  = access_cb,
                 .flags      = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
                 .val_handle = &s_time_handle,
+            },
+            {
+                .uuid       = &NB_OTA_UUID.u,
+                .access_cb  = access_cb,
+                .flags      = BLE_GATT_CHR_F_READ,
+                .val_handle = &s_ota_handle,
             },
             { 0 },
         },

@@ -7,6 +7,7 @@ import '../ble/ble_service.dart';
 import '../bridge/notification_bridge.dart';
 import '../i18n/strings.dart';
 import 'app_filter_screen.dart';
+import 'firmware_update_screen.dart';
 import 'pairing_screen.dart';
 import 'test_panel.dart';
 
@@ -181,6 +182,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const AppFilterScreen()),
+                ),
+              ),
+            ),
+          if (Platform.isAndroid)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.system_update),
+                title: Text(t(context, 'home.fw.title')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FirmwareUpdateScreen()),
                 ),
               ),
             ),

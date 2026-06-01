@@ -1,7 +1,7 @@
 name: aa_bridge
 description: "Notification + media BLE bridge to ESP32-P4 head unit."
 publish_to: 'none'
-version: 0.1.1+2
+version: 0.1.2+3
 
 environment:
   sdk: ^3.7.2
@@ -25,3 +25,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # P4 firmware image bundled for over-WiFi OTA flashing from the app.
+    # Refresh with scripts/stage_firmware_asset.sh after idf.py build.
+    - assets/firmware/esp32p4_android_auto.bin
+    - assets/firmware/version.txt

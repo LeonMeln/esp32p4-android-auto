@@ -49,6 +49,25 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        MethodChannel(messenger, "aabridge/wifi")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "join" -> {
+                        val ssid = call.argument<String>("ssid") ?: ""
+                        val pw = call.argument<String>("password") ?: ""
+                        val timeout = call.argument<Int>("timeoutMs") ?: 30000
+                        WifiBridge.join(this, ssid, pw, timeout) { ok, reason ->
+                            if (ok) result.success(true)
+                            else result.error("join_failed", reason, null)
+                        }
+                    }
+                    "unbind" -> {
+                        WifiBridge.unbind(this); result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(messenger, "aabridge/foreground")
             .setMethodCallHandler { call, result ->
                 when (call.method) {

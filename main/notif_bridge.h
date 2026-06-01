@@ -17,7 +17,9 @@ extern "C" {
  *   IN   CHR: 7B4E4F00-...-0002  WRITE_NO_RSP  (phone → P4)
  *   OUT  CHR: 7B4E4F00-...-0003  NOTIFY        (P4 → phone)
  *   ST   CHR: 7B4E4F00-...-0004  READ          (caps blob; reserved)
- *   TIME CHR: 7B4E4F00-...-0005  WRITE_NO_RSP  (phone → P4, [hour, minute]) */
+ *   TIME CHR: 7B4E4F00-...-0005  WRITE_NO_RSP  (phone → P4, [hour, minute])
+ *   OTA  CHR: 7B4E4F00-...-0006  READ          (SoftAP creds + OTA endpoint
+ *                                              + fw version for app-side OTA) */
 
 void notif_bridge_init(void);
 

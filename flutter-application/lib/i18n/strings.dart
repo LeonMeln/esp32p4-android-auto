@@ -69,6 +69,22 @@ const _en = <String, String>{
   'lang.choose': 'Choose language',
   'lang.en': 'English',
   'lang.ru': 'Русский',
+
+  'home.fw.title': 'Update head unit firmware',
+  'fw.title': 'Firmware update',
+  'fw.device': 'Head unit version',
+  'fw.bundled': 'Bundled in app',
+  'fw.unsupported': 'This head unit does not support over-the-air updates from the app.',
+  'fw.disconnected': 'Connect to the head unit over Bluetooth first.',
+  'fw.reading': 'Reading device info…',
+  'fw.uptodate': 'Head unit is already on this version.',
+  'fw.flash': 'Flash firmware',
+  'fw.flashing': 'Updating…',
+  'fw.warn.title': 'Flash firmware?',
+  'fw.warn.body': 'The phone will join the head unit\'s WiFi and upload the firmware. Keep the device powered the whole time — it reboots when done.',
+  'fw.warn.go': 'Flash',
+  'fw.cancel': 'Cancel',
+  'fw.done': 'Firmware uploaded — the head unit is rebooting.',
 };
 
 const _ru = <String, String>{
@@ -129,6 +145,22 @@ const _ru = <String, String>{
   'lang.choose': 'Выбор языка',
   'lang.en': 'English',
   'lang.ru': 'Русский',
+
+  'home.fw.title': 'Обновить прошивку устройства',
+  'fw.title': 'Обновление прошивки',
+  'fw.device': 'Версия на устройстве',
+  'fw.bundled': 'В приложении',
+  'fw.unsupported': 'Это устройство не поддерживает обновление прошивки из приложения.',
+  'fw.disconnected': 'Сначала подключитесь к устройству по Bluetooth.',
+  'fw.reading': 'Чтение информации с устройства…',
+  'fw.uptodate': 'На устройстве уже эта версия.',
+  'fw.flash': 'Прошить',
+  'fw.flashing': 'Обновление…',
+  'fw.warn.title': 'Прошить устройство?',
+  'fw.warn.body': 'Телефон подключится к WiFi устройства и зальёт прошивку. Не выключайте устройство до конца — по завершении оно перезагрузится.',
+  'fw.warn.go': 'Прошить',
+  'fw.cancel': 'Отмена',
+  'fw.done': 'Прошивка залита — устройство перезагружается.',
 };
 
 const _tables = <String, Map<String, String>>{
