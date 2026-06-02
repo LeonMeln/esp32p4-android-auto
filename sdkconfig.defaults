@@ -68,12 +68,17 @@ CONFIG_ESP_HOSTED_USE_MEMPOOL=n
 # 100 ms is plenty for the C6 to come up out of reset.
 CONFIG_ESP_HOSTED_SDIO_RESET_DELAY_MS=100
 
+# Reflash the D1 Mini BT agent over UART on version mismatch. With this on,
+# P4 compares the agent's BT-VER: against CONFIG_BT_AGENT_FW_VERSION at boot
+# and pushes the embedded bt_agent_fw.bin.gz when they differ.
+CONFIG_BT_AGENT_OTA_ENABLED=y
+
 # Must match what the embedded bt_agent firmware emits on boot via
 # `BT-VER:<v>`. Bump in lockstep with tools/bt_agent's FW_VERSION
 # when repacking bt_agent_fw.bin.gz. Pinned here too (not just
 # Kconfig.projbuild's default) so existing sdkconfig files from old
 # checkouts don't keep a stale value and silently skip OTA.
-CONFIG_BT_AGENT_FW_VERSION="0.6.2"
+CONFIG_BT_AGENT_FW_VERSION="0.6.3"
 
 # ===== WiFi Remote (transparent esp_wifi API on P4) =====
 CONFIG_ESP_WIFI_REMOTE_ENABLED=y

@@ -41,16 +41,30 @@ const uart_link_wifi_t *uart_link_get_wifi(void)
     return s_wifi_have ? &s_wifi : NULL;
 }
 
-/* Forward decl — defined in main.c near the auto-reconnect task. */
+/* Forward decls — defined in main.c near the auto-reconnect task. */
 extern void bt_agent_set_auto_reconnect(bool on);
+extern void bt_agent_connect_now(void);
+extern void bt_agent_request_aa_reconnect(void);
 
 /* Parse one received line.
  *   WIFI|<ssid>|<password>|<bssid>|<ip>|<port>
  *   AUTO_RECONNECT|<0|1>
+ *   BT_CONNECT            — page the last paired phone right now
+ *   AA_RECONNECT          — bounce HFP to wake gearhead on a linked phone
  * Pipes split fields. Trailing newline already stripped by caller.
  * Stores into s_wifi on success and sets s_wifi_have. */
 static void parse_line(char *line)
 {
+    if (strncmp(line, "BT_CONNECT", 10) == 0) {
+        /* User tapped "Connect" on the P4 idle screen. Force an immediate
+         * page regardless of the auto-reconnect toggle. */
+        bt_agent_connect_now();
+        return;
+    }
+    if (strncmp(line, "AA_RECONNECT", 12) == 0) {
+        bt_agent_request_aa_reconnect();
+        return;
+    }
     if (strncmp(line, "AUTO_RECONNECT|", 15) == 0) {
         bt_agent_set_auto_reconnect(line[15] == '1');
         return;

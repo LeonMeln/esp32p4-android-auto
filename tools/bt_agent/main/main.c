@@ -41,7 +41,7 @@ static const char *TAG = "bt_agent";
  * mismatch it forces this chip into ROM bootloader and reflashes from the
  * embedded blob. Bump together with the CONFIG_BT_AGENT_FW_VERSION default
  * in main/Kconfig.projbuild on the P4 side any time the agent code changes. */
-#define BT_AGENT_FW_VERSION "0.5.0"
+#define BT_AGENT_FW_VERSION "0.6.3"
 
 /* NVS namespace + key for remembering the last successfully-paired phone's
  * BDA. On boot, if a value is present, we proactively HFP-connect to it so
@@ -523,6 +523,68 @@ void bt_agent_set_auto_reconnect(bool on)
         nvs_close(h);
     }
     ESP_LOGI(TAG, "auto_reconnect → %d (from P4)", on ? 1 : 0);
+}
+
+/* Public hook for uart_link: P4 sent BT_CONNECT (user tapped "Connect" on
+ * the idle screen). Page the last paired phone right now, regardless of the
+ * g_auto_reconnect toggle — the button is the user's explicit "connect now".
+ * Mirrors one iteration of auto_reconnect_task's connect path. No-op if we've
+ * never paired or the SPP (AA) link is already up. Safe to call from the UART
+ * rx_task context — esp_hf_client_connect just queues the page in the stack. */
+void bt_agent_connect_now(void)
+{
+    if (!g_last_bda_valid) {
+        ESP_LOGI(TAG, "BT_CONNECT: ignored (no paired phone)");
+        return;
+    }
+    if (g_spp_handle != 0) {
+        ESP_LOGI(TAG, "BT_CONNECT: SPP already up");
+        return;
+    }
+    ESP_LOGI(TAG, "BT_CONNECT: HFP-connecting to %02x:%02x:%02x:%02x:%02x:%02x",
+             g_last_bda[0], g_last_bda[1], g_last_bda[2],
+             g_last_bda[3], g_last_bda[4], g_last_bda[5]);
+    esp_err_t e = esp_hf_client_connect(g_last_bda);
+    if (e != ESP_OK) {
+        /* INVALID_STATE = a previous page is still pending; not fatal. */
+        ESP_LOGW(TAG, "BT_CONNECT: esp_hf_client_connect: %s", esp_err_to_name(e));
+    }
+}
+
+/* Public hook for uart_link: P4 sent AA_RECONNECT. Unlike BT_CONNECT (which
+ * opens the ACL link from cold), this nudges an *already-linked* phone whose
+ * gearhead dropped the AA projection without dropping HFP — bouncing the HFP
+ * link makes gearhead notice its car kit "came back" and re-pop the SPP/AA
+ * channel. Gated by g_auto_reconnect and throttled so a chatty P4 can't spam
+ * disconnects. No-op if unpaired or HFP is already down (the auto-reconnect
+ * task owns the cold-page path in that case). */
+void bt_agent_request_aa_reconnect(void)
+{
+    if (!g_last_bda_valid) {
+        ESP_LOGI(TAG, "AA_RECONNECT: ignored (no paired phone yet)");
+        return;
+    }
+    if (!g_auto_reconnect) {
+        ESP_LOGI(TAG, "AA_RECONNECT: ignored (auto_reconnect disabled)");
+        return;
+    }
+    static TickType_t s_last_bounce;
+    TickType_t now = xTaskGetTickCount();
+    if (s_last_bounce != 0) {
+        float since = (now - s_last_bounce) * portTICK_PERIOD_MS / 1000.0f;
+        if (since < 5.0f) {
+            ESP_LOGI(TAG, "AA_RECONNECT: throttled (%.1fs since last)", since);
+            return;
+        }
+    }
+    if (!g_hfp_connected) {
+        /* Nothing to bounce — let auto_reconnect_task page from cold. */
+        ESP_LOGI(TAG, "AA_RECONNECT: HFP already down");
+        return;
+    }
+    s_last_bounce = now;
+    ESP_LOGI(TAG, "AA_RECONNECT: bouncing HFP to wake gearhead");
+    esp_hf_client_disconnect(g_last_bda);
 }
 
 /* ---------- Init ---------- */
