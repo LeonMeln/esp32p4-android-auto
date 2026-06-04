@@ -37,6 +37,7 @@ int cockpit_get_battery_proc_value(void) { return atomic_load(&s_cockpit_battery
 #ifdef LV_REALDEVICE
 #include "vesc_limits.h"
 #include "vesc_battery_calc.h"
+#include "app_fs.h"
 #endif
 
 int cruise_active = 0;
@@ -346,12 +347,66 @@ static void set_position_y(void * gui, int32_t temp)
   
 }
 
+#ifdef LV_REALDEVICE
+/* Global "Formatting backup storage" notice. The trip/backup LittleFS volume is
+ * formatted once on first boot (background, on the app_fs task); with flash
+ * AUTO_SUSPEND off that stalls rendering, so we draw a full-screen notice on the
+ * top layer (above any screen) and flush it BEFORE the freeze deepens. A light
+ * lv_timer polls app_fs_state and tears the notice down once mounted. */
+static lv_obj_t   *s_fmt_overlay;
+static lv_timer_t *s_fmt_overlay_tmr;
+
+static void fmt_overlay_show(void)
+{
+    if (s_fmt_overlay) return;
+    s_fmt_overlay = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(s_fmt_overlay, 800, 480);
+    lv_obj_set_pos(s_fmt_overlay, 0, 0);
+    lv_obj_set_style_bg_color(s_fmt_overlay, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(s_fmt_overlay, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(s_fmt_overlay, 0, 0);
+    lv_obj_add_flag(s_fmt_overlay, LV_OBJ_FLAG_CLICKABLE);   /* absorb touches */
+    lv_obj_clear_flag(s_fmt_overlay, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *l = lv_label_create(s_fmt_overlay);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(l, 720);
+    lv_label_set_text(l, "Formatting backup storage...\n"
+                         "One-time setup, please wait (up to ~1 min).\n"
+                         "Do not power off.");
+    lv_obj_set_style_text_color(l, lv_color_hex(0xFFB02E), 0);
+    lv_obj_set_style_text_font(l, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_center(l);
+    lv_refr_now(NULL);   /* draw + flush before the format freezes rendering */
+}
+
+static void fmt_overlay_timer_cb(lv_timer_t *t)
+{
+    int st = app_fs_state();
+    if (st == APP_FS_FORMATTING) {
+        fmt_overlay_show();
+    } else if (st == APP_FS_READY || st == APP_FS_FAIL) {
+        if (s_fmt_overlay) { lv_obj_del(s_fmt_overlay); s_fmt_overlay = NULL; }
+        lv_timer_del(t);
+        s_fmt_overlay_tmr = NULL;
+    }
+}
+#endif /* LV_REALDEVICE */
+
 void custom_init(lv_ui *ui)
 {
     /* Add your codes here */
 
     /* Disable screen panning — dashboard is a static layout. */
     lv_obj_clear_flag(ui->dashboard, LV_OBJ_FLAG_SCROLLABLE);
+
+#ifdef LV_REALDEVICE
+    /* Watch for the one-time backup-FS format and show a notice while it runs. */
+    if (!s_fmt_overlay_tmr) {
+        s_fmt_overlay_tmr = lv_timer_create(fmt_overlay_timer_cb, 200, NULL);
+    }
+#endif
 
     // BLE status is shown via dashboard_status_bt text — the
     // ble_connected_img icon has been removed from the project.
