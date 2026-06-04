@@ -972,12 +972,16 @@ void update_esc_connection_status(bool connected)
             //lv_obj_clear_flag(guider_ui.dashboard_Ah_const_text, LV_OBJ_FLAG_HIDDEN);
             //lv_obj_clear_flag(guider_ui.dashboard_Ah_text, LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(guider_ui.dashboard_mode_text, LV_OBJ_FLAG_HIDDEN);
+            /* Re-show the STATISTICS entry point on reconnect — the blink loop
+             * (which only runs while disconnected) may have left it hidden. */
+            lv_obj_clear_flag(guider_ui.dashboard_statistics_button, LV_OBJ_FLAG_HIDDEN);
         } else {
             // ESC disconnected - show warning text (will start blinking)
             lv_obj_clear_flag(guider_ui.dashboard_esc_not_connected_text, LV_OBJ_FLAG_HIDDEN);
             //lv_obj_add_flag(guider_ui.dashboard_Ah_text, LV_OBJ_FLAG_HIDDEN);
             //lv_obj_add_flag(guider_ui.dashboard_Ah_const_text, LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(guider_ui.dashboard_mode_text, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(guider_ui.dashboard_statistics_button, LV_OBJ_FLAG_HIDDEN);
             blink_state = true;
         }
     }
