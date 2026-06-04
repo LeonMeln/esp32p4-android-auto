@@ -35,6 +35,7 @@ idf_component_register(
         "vesc_ui_updater.c"
         "vesc_sim.c"
         "vbat_routing.c"
+        "trip_log.c"
     INCLUDE_DIRS "."
     REQUIRES
         nvs_flash
@@ -64,6 +65,7 @@ idf_component_register(
         espressif__esp_lvgl_adapter
         vesc_ui
         vesc_can
+        vesc_config
         dev_settings
         log_capture
 )

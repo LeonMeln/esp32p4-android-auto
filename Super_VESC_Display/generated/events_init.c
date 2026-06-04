@@ -31,6 +31,21 @@ static void dashboard_event_handler (lv_event_t *e)
     }
 }
 
+static void dashboard_status_vesc_event_handler (lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        //for claude
+        run_vesc_tool_menu();
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 static void dashboard_Settings_text_event_handler (lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
@@ -63,6 +78,7 @@ static void dashboard_brightness_slider_event_handler (lv_event_t *e)
 void events_init_dashboard (lv_ui *ui)
 {
     lv_obj_add_event_cb(ui->dashboard, dashboard_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->dashboard_status_vesc, dashboard_status_vesc_event_handler, LV_EVENT_ALL, ui);
     lv_obj_add_event_cb(ui->dashboard_Settings_text, dashboard_Settings_text_event_handler, LV_EVENT_ALL, ui);
     lv_obj_add_event_cb(ui->dashboard_brightness_slider, dashboard_brightness_slider_event_handler, LV_EVENT_ALL, ui);
 }

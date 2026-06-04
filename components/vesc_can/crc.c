@@ -73,3 +73,33 @@ uint32_t crc32_with_init(const uint8_t *buf, uint32_t len, uint32_t cksum)
 
     return ~cksum;
 }
+
+/* CRC-32C (Castagnoli), reflected polynomial 0x82F63B78 — matches
+ * Utility::crc32c() in VESC Tool, used to compute the config signature.
+ * Streaming API so the signature can be built over many small fragments
+ * (param name + type + vTx + enum names) without a scratch buffer. */
+uint32_t crc32c_init(void)
+{
+    return 0xFFFFFFFF;
+}
+
+uint32_t crc32c_update(uint32_t crc, const uint8_t *buf, uint32_t len)
+{
+    while (len--) {
+        crc ^= *buf++;
+        for (int j = 0; j < 8; j++) {
+            crc = (crc >> 1) ^ (0x82F63B78u & (uint32_t)(-(int32_t)(crc & 1)));
+        }
+    }
+    return crc;
+}
+
+uint32_t crc32c_final(uint32_t crc)
+{
+    return crc ^ 0xFFFFFFFF;
+}
+
+uint32_t crc32c(const uint8_t *buf, uint32_t len)
+{
+    return crc32c_final(crc32c_update(crc32c_init(), buf, len));
+}

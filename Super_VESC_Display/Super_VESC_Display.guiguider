@@ -9595,11 +9595,13 @@
 					"name": "status_vesc",
 					"id": "cn9qbkti",
 					"type": "label",
-					"left": 8,
+					"left": 10,
 					"top": 5,
 					"visible": true,
 					"isLock": false,
-					"flag": [],
+					"flag": [
+						"LV_OBJ_FLAG_CLICKABLE"
+					],
 					"width": 92,
 					"height": 30,
 					"default_style": false,
@@ -9689,7 +9691,28 @@
 							"shadow_ofs_x": 0,
 							"shadow_ofs_y": 0
 						}
-					]
+					],
+					"event": {
+						"widget": {
+							"clicked": {
+								"condition": [],
+								"action": [
+									{
+										"dst": "custom_code",
+										"bindCondi": "",
+										"actionList": {
+											"custom_code": {
+												"inc_c": "",
+												"code_c": "//for claude\nrun_vesc_tool_menu();",
+												"inc_py": "",
+												"code_py": ""
+											}
+										}
+									}
+								]
+							}
+						}
+					}
 				},
 				{
 					"name": "statusbar_sep",
@@ -9830,8 +9853,7 @@
 					"bg_img_recolor": "#000000",
 					"bg_img_recolor_opa": 0
 				}
-			],
-			"layerName": "dashboard"
+			]
 		},
 		{
 			"name": "settings",
@@ -10097,8 +10119,7 @@
 					"bg_img_recolor": "#ffffff",
 					"bg_img_recolor_opa": 0
 				}
-			],
-			"layerName": "settings"
+			]
 		}
 	],
 	"Application": {
@@ -10290,9 +10311,11 @@
 						"id": "cn9qbkti",
 						"type": "label",
 						"visible": true,
-						"flag": [],
+						"flag": [
+							"LV_OBJ_FLAG_CLICKABLE"
+						],
 						"pos": [
-							8,
+							10,
 							5
 						],
 						"size": [
@@ -10302,6 +10325,27 @@
 						"default_style": false,
 						"attribute_type": "",
 						"custom_attribute": [],
+						"event": {
+							"widget": {
+								"clicked": {
+									"condition": [],
+									"action": [
+										{
+											"dst": "custom_code",
+											"bindCondi": "",
+											"actionList": {
+												"custom_code": {
+													"inc_c": "",
+													"code_c": "//for claude\nrun_vesc_tool_menu();",
+													"inc_py": "",
+													"code_py": ""
+												}
+											}
+										}
+									]
+								}
+							}
+						},
 						"text": "VESC",
 						"long_mode": "LV_LABEL_LONG_WRAP",
 						"is_static": false,
@@ -29695,11 +29739,13 @@
 														"name": "status_vesc",
 														"id": "cn9qbkti",
 														"type": "label",
-														"left": 8,
+														"left": 10,
 														"top": 5,
 														"visible": true,
 														"isLock": false,
-														"flag": [],
+														"flag": [
+															"LV_OBJ_FLAG_CLICKABLE"
+														],
 														"width": 92,
 														"height": 30,
 														"default_style": false,
@@ -29789,7 +29835,28 @@
 																"shadow_ofs_x": 0,
 																"shadow_ofs_y": 0
 															}
-														]
+														],
+														"event": {
+															"widget": {
+																"clicked": {
+																	"condition": [],
+																	"action": [
+																		{
+																			"dst": "custom_code",
+																			"bindCondi": "",
+																			"actionList": {
+																				"custom_code": {
+																					"inc_c": "",
+																					"code_c": "//for claude\nrun_vesc_tool_menu();",
+																					"inc_py": "",
+																					"code_py": ""
+																				}
+																			}
+																		}
+																	]
+																}
+															}
+														}
 													},
 													{
 														"name": "statusbar_sep",

@@ -25,3 +25,7 @@ dependencies:
     version: "^1.7.0"
     rules:
       - if: "idf_version >=5.0"
+  # LittleFS for the trip-history store (real folders /trips/<id>/, power-loss
+  # safe, good for many small log files). Mounted on the "storage" partition.
+  joltwallet/littlefs:
+    version: "^1.14.0"

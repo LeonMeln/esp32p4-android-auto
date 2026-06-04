@@ -41,6 +41,7 @@ idf_component_register(
         dev_settings
         log_capture
         qr_info
+        vesc_config
 )
 
 # LV_REALDEVICE flips settings_wrapper.c from in-RAM SIMULATOR_MODE to the

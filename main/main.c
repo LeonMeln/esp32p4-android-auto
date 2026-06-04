@@ -66,8 +66,11 @@ void port_start_app_hook(void)
 #include "vesc_battery_calc.h"
 #include "vesc_can/vesc_lisp_poll.h"
 #include "vesc_can/vesc_rt_data.h"
+#include "vesc_config/vesc_config.h"
+#include "vesc_config/vesc_config_transport.h"
 #include "vesc_sim.h"
 #include "vesc_trip_persist.h"
+#include "trip_log.h"
 #include "vesc_ui_updater.h"
 #include "wifi_manager.h"
 
@@ -139,6 +142,9 @@ static void vesc_packet_dispatch(const uint8_t *data, unsigned int len)
 #if CONFIG_VESC_CAN_LISP_POLL_ENABLE
     vesc_lisp_poll_process_response(data, len);
 #endif
+    /* Config GET/SET/FW_VERSION replies (COMM ids 0, 13-18). Gates on data[0]
+     * and ignores packets it doesn't own. */
+    vesc_config_transport_process_response(data, len);
     ble_nus_forward_response(data, (uint16_t)len);
 }
 
@@ -243,6 +249,9 @@ void app_main(void)
      * pattern as battery_calc, separate namespace. The dashboard reset icon
      * eventually flows here via battery_calc_reset_trip_and_ah(). */
     trip_persist_init();
+    /* Per-trip history to LittleFS (/vescfs/trips/<id>/). Mounts the backup FS
+     * at boot and rolls over to a new trip on reset / battery swap. */
+    trip_log_init();
 
     /* Bump CPU to 400 MHz before any peripheral / WiFi init so APB ratio
      * stays consistent. No-op unless CONFIG_AA_OVERCLOCK_400 is set. */
@@ -314,6 +323,8 @@ void app_main(void)
         vesc_rt_data_init(tgt_id, CONFIG_VESC_CAN_RT_INTERVAL_MS);
         vesc_sim_start();
         ESP_LOGW(TAG, "VESC EMULATOR active — no real CAN");
+        /* Config menu backed by in-RAM defaults (no CAN in emulator mode). */
+        vesc_config_init();
         vesc_ui_updater_start();
     } else if (comm_can_start(CONFIG_VESC_CAN_TX_GPIO, CONFIG_VESC_CAN_RX_GPIO,
                               ctrl_id, can_kbps) == ESP_OK) {
@@ -324,6 +335,10 @@ void app_main(void)
         comm_can_set_packet_handler(vesc_packet_dispatch);
         vesc_rt_data_start();
         vesc_rt_data_start_task();
+        /* Probe the downstream VESC's firmware version over CAN and pick the
+         * matching config table. Reply routed via vesc_packet_dispatch. */
+        vesc_config_init();
+        vesc_config_probe_fw();
 #if CONFIG_VESC_CAN_LISP_POLL_ENABLE
         /* start() only flips the active flag. The pumping happens inside the
          * single CAN-polling task spawned by vesc_rt_data_start_task() above —

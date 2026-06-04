@@ -57,8 +57,9 @@ void setup_scr_dashboard(lv_ui *ui)
     ui->dashboard_status_vesc = lv_label_create(ui->dashboard);
     lv_label_set_text(ui->dashboard_status_vesc, "VESC");
     lv_label_set_long_mode(ui->dashboard_status_vesc, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->dashboard_status_vesc, 8, 5);
+    lv_obj_set_pos(ui->dashboard_status_vesc, 10, 5);
     lv_obj_set_size(ui->dashboard_status_vesc, 92, 30);
+    lv_obj_add_flag(ui->dashboard_status_vesc, LV_OBJ_FLAG_CLICKABLE);
 
     //Write style for dashboard_status_vesc, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
     lv_obj_set_style_border_width(ui->dashboard_status_vesc, 0, LV_PART_MAIN|LV_STATE_DEFAULT);

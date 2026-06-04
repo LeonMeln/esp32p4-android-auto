@@ -93,7 +93,7 @@ dependencies:
     - esp32p4
     version: 1.3.6
   espressif/esp_hosted:
-    component_hash: a424e4cf8de13b657d09f14dbd615cc946cffdc3f032509915d3058f4637fa72
+    component_hash: 037d55a70dc5e2699754c0f3e21427d0df4ff29dc89cc80746978ad5b9dc4589
     dependencies:
     - name: idf
       require: private
@@ -101,7 +101,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 2.12.7
+    version: 2.12.8
   espressif/esp_image_effects:
     component_hash: a9a9a18173dc338f94559e61ebbfc1aeff5ebb2f7703e7e3d2431c5bb3450fe6
     dependencies:
@@ -423,6 +423,16 @@ dependencies:
     source:
       type: idf
     version: 5.5.3
+  joltwallet/littlefs:
+    component_hash: 01faa388c6305fe77fd6962cda6171e753033458f24f8fae9e9d932e3d817a4c
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.22.1
   lvgl/lvgl:
     component_hash: 948bff879a345149b83065535bbc4a026ce9f47498a22881e432a264b9098015
     dependencies: []
@@ -442,7 +452,8 @@ direct_dependencies:
 - espressif/esp_wifi_remote
 - espressif/mdns
 - idf
+- joltwallet/littlefs
 - lvgl/lvgl
-manifest_hash: b5d05a9f9bb7b90013a1989f803def055864448d5da5a9639669c1330b78f446
+manifest_hash: dd2af5ae29a28beb1e97e5086abd68e1fca3bb6547f76b54936dbb724edf580b
 target: esp32p4
 version: 2.0.0

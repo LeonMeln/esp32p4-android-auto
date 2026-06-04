@@ -29,9 +29,14 @@ float    trip_persist_get_trip_km(void);
 float    trip_persist_get_amp_hours(void);
 uint32_t trip_persist_get_uptime_ms(void);
 
-/* Zero everything and wipe NVS. Used on battery swap / "reset trip"
+/* Zero everything and wipe the saved file. Used on battery swap / "reset trip"
  * dashboard button. */
 void  trip_persist_reset(void);
+
+/* Hook fired at the end of trip_persist_reset() — both the reset button and
+ * battery-swap detection funnel here. The trip logger uses it to roll over to
+ * a new trip folder. */
+void  trip_persist_set_reset_cb(void (*cb)(void));
 
 bool  trip_persist_is_initialized(void);
 

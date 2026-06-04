@@ -14,6 +14,7 @@
 #include "vesc_can/vesc_lisp_poll.h"
 #include "vesc_can/vesc_rt_data.h"
 #include "vesc_trip_persist.h"
+#include "trip_log.h"
 
 /* GUI Guider's custom.h is generated C++-friendly but pure C. The
  * widget update functions live in Super_VESC_Display/custom/custom.c
@@ -101,6 +102,7 @@ static void push_rt_locked(void)
      * already includes any in-flight regen offset from the VESC; uptime_ms
      * is the VESC's own uptime which resets on reboot. */
     trip_persist_update(rt->tachometer_abs, rt->amp_hours, rt->uptime_ms);
+    trip_log_tick(rt);   /* per-trip history → /vescfs/trips/<id>/ (throttled to 10 s) */
 
     update_speed(vesc_rt_data_get_speed_kmh());
     update_current(rt->current_in);

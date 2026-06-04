@@ -18,6 +18,13 @@ extern "C" {
 void custom_init(lv_ui *ui);
 void settings_ui_init(lv_ui *ui);
 
+/* VESC Tool controller-config menu. Opened from the dashboard VESC status
+ * widget (events_init.c). Builds a self-contained screen that mirrors the
+ * mobile VESC Tool config (Motor + App, all params grouped into tabs), backed
+ * by either a real VESC over CAN or the in-RAM emulator. Defined in
+ * custom/vesc_tool_menu.c. */
+void run_vesc_tool_menu(void);
+
 void update_current(float current);
 void update_speed(float speed);
 void update_battery_proc(float battery_proc);
