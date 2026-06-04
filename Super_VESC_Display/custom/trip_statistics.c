@@ -1,0 +1,624 @@
+/*
+ * Trip statistics window (show_trips_statistics).
+ *
+ * A self-contained LVGL screen — created on demand, destroyed on unload, like
+ * the VESC Tool menu and the logs/QR screens — that reads the raw trip log
+ * (components/trip_log) and shows:
+ *   - a scrollable table of trips (newest first: #, distance, time, avg, Wh),
+ *   - a per-trip detail panel (summary + one chart with a metric selector:
+ *     speed / power / voltage / temperatures / remaining capacity).
+ *
+ * The flash scan is heavy, so on the device it runs on a short-lived worker
+ * task and the result is marshalled back to the LVGL thread via lv_async_call;
+ * an s_alive guard prevents a late result from touching a destroyed screen.
+ *
+ * The desktop simulator has no flash (trip_log is not compiled there), so it
+ * fills the same UI from a synthetic dataset — the window stays demoable.
+ */
+#include "lvgl.h"
+#include "custom.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+#include <math.h>
+
+extern lv_ui guider_ui;
+
+/* ---- palette (matches the rest of the UI) ---- */
+#define COL_BG     0x07090A
+#define COL_PANEL  0x12181C
+#define COL_BTN    0x2a3440
+#define COL_ACCENT 0xB6FF2E   /* lime  */
+#define COL_CYAN   0x00a9ff
+#define COL_ORANGE 0xffa500
+#define COL_RED    0xFF3B30
+#define COL_TEXT   0xFFFFFF
+#define COL_DIM    0x8A9499
+
+#define MAX_TRIPS_UI 50
+#define MAX_SERIES   150
+
+#ifdef LV_REALDEVICE
+#  include "trip_log.h"                 /* trip_summary_t / trip_sample_t + reader */
+#  include "vesc_trip_persist.h"        /* live current-trip totals */
+#  include "freertos/FreeRTOS.h"
+#  include "freertos/task.h"
+#else
+/* Mirror the reader structs so the shared UI code compiles in the simulator. */
+typedef struct {
+    uint32_t trip_id, duration_s, distance_m, sample_count;
+    float    ah, wh;
+    uint16_t avg_speed_dkmh, max_speed_dkmh, min_voltage_dv;
+    bool     is_current;
+} trip_summary_t;
+
+typedef struct {
+    uint32_t t_s;
+    int16_t  speed_dkmh, power_w, temp_motor_dc, temp_fet_dc;
+    uint16_t voltage_dv;
+    uint8_t  batt_pct;
+} trip_sample_t;
+#endif
+
+/* ---- screen state ---- */
+static lv_obj_t *s_screen;
+static lv_obj_t *s_title;
+static lv_obj_t *s_back_btn;
+static lv_obj_t *s_list_view, *s_detail_view;
+static lv_obj_t *s_table;
+static lv_obj_t *s_totals;
+static lv_obj_t *s_empty_lbl;
+static lv_obj_t *s_summary;
+static lv_obj_t *s_metric_btns[5];   /* metric selector buttons */
+static lv_obj_t *s_chart, *s_chart_title;
+static lv_chart_series_t *s_ser_a, *s_ser_b;
+static lv_obj_t *s_spinner_modal;
+static lv_timer_t *s_live_timer;
+static bool      s_alive;
+static bool      s_busy;             /* a scan is in flight */
+static int       s_metric;           /* 0..4 */
+
+/* data buffers (filled by the worker / synthetic generator) */
+static trip_summary_t s_trips[MAX_TRIPS_UI];
+static int            s_trip_count;
+static trip_sample_t  s_series[MAX_SERIES];
+static int            s_series_count;
+static int            s_detail_idx;       /* row index into s_trips for the open detail */
+static uint32_t       s_detail_trip_id;
+
+static void request_trips(void);
+static void request_series(uint32_t trip_id);
+static void populate_list(void);
+static void refresh_chart(int metric);
+static void style_metric_btn(lv_obj_t *b, bool sel);
+
+/* ===================== helpers ===================== */
+
+static void fmt_dur(uint32_t secs, char *buf, size_t n)
+{
+    uint32_t h = secs / 3600u, m = (secs / 60u) % 60u, s = secs % 60u;
+    if (h > 0) snprintf(buf, n, "%uh%02u", (unsigned)h, (unsigned)m);
+    else       snprintf(buf, n, "%u:%02u", (unsigned)m, (unsigned)s);
+}
+
+static void show_spinner(const char *text)
+{
+    if (s_spinner_modal) return;
+    s_spinner_modal = lv_obj_create(s_screen);
+    lv_obj_set_size(s_spinner_modal, 800, 480);
+    lv_obj_set_pos(s_spinner_modal, 0, 0);
+    lv_obj_set_style_bg_color(s_spinner_modal, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(s_spinner_modal, LV_OPA_60, 0);
+    lv_obj_set_style_border_width(s_spinner_modal, 0, 0);
+    lv_obj_clear_flag(s_spinner_modal, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_spinner_modal, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_t *sp = lv_spinner_create(s_spinner_modal, 1000, 60);
+    lv_obj_set_size(sp, 80, 80);
+    lv_obj_align(sp, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_set_style_arc_color(sp, lv_color_hex(COL_CYAN), LV_PART_INDICATOR);
+
+    lv_obj_t *l = lv_label_create(s_spinner_modal);
+    lv_label_set_text(l, text);
+    lv_obj_set_style_text_color(l, lv_color_hex(COL_TEXT), 0);
+    lv_obj_set_style_text_font(l, &lv_font_montserrat_24, 0);
+    lv_obj_align(l, LV_ALIGN_CENTER, 0, 50);
+}
+
+static void hide_spinner(void)
+{
+    if (s_spinner_modal) { lv_obj_del(s_spinner_modal); s_spinner_modal = NULL; }
+}
+
+/* ===================== list ===================== */
+
+static void populate_list(void)
+{
+    if (!s_table) return;
+
+    if (s_trip_count <= 0) {
+        lv_obj_add_flag(s_table, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_totals, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(s_empty_lbl, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_clear_flag(s_table, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(s_totals, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(s_empty_lbl, LV_OBJ_FLAG_HIDDEN);
+
+    lv_table_set_row_cnt(s_table, s_trip_count + 1);   /* +1 header row */
+    lv_table_set_cell_value(s_table, 0, 0, "#");
+    lv_table_set_cell_value(s_table, 0, 1, "Dist");
+    lv_table_set_cell_value(s_table, 0, 2, "Time");
+    lv_table_set_cell_value(s_table, 0, 3, "Avg");
+    lv_table_set_cell_value(s_table, 0, 4, "Wh");
+
+    double sum_km = 0, sum_wh = 0;
+    uint32_t sum_s = 0;
+    char b[24];
+    for (int i = 0; i < s_trip_count; i++) {
+        trip_summary_t *t = &s_trips[i];
+        int row = i + 1;
+        if (t->is_current) snprintf(b, sizeof b, "%u*", (unsigned)t->trip_id);
+        else               snprintf(b, sizeof b, "%u",  (unsigned)t->trip_id);
+        lv_table_set_cell_value(s_table, row, 0, b);
+        snprintf(b, sizeof b, "%.1f", t->distance_m / 1000.0); lv_table_set_cell_value(s_table, row, 1, b);
+        fmt_dur(t->duration_s, b, sizeof b);                   lv_table_set_cell_value(s_table, row, 2, b);
+        snprintf(b, sizeof b, "%.0f", t->avg_speed_dkmh / 10.0); lv_table_set_cell_value(s_table, row, 3, b);
+        snprintf(b, sizeof b, "%.0f", t->wh);                  lv_table_set_cell_value(s_table, row, 4, b);
+        sum_km += t->distance_m / 1000.0;
+        sum_wh += t->wh;
+        sum_s  += t->duration_s;
+    }
+    char tot[64];
+    char dur[16]; fmt_dur(sum_s, dur, sizeof dur);
+    snprintf(tot, sizeof tot, "Total: %.1f km  |  %s  |  %.2f kWh",
+             sum_km, dur, sum_wh / 1000.0);
+    lv_label_set_text(s_totals, tot);
+}
+
+/* ===================== detail ===================== */
+
+static void open_detail(int idx)
+{
+    if (idx < 0 || idx >= s_trip_count) return;
+    s_detail_idx = idx;
+    trip_summary_t *t = &s_trips[idx];
+
+    lv_label_set_text_fmt(s_title, "Trip #%u", (unsigned)t->trip_id);
+
+    char dur[16]; fmt_dur(t->duration_s, dur, sizeof dur);
+    double whkm = (t->distance_m > 0) ? (t->wh / (t->distance_m / 1000.0)) : 0.0;
+    lv_label_set_text_fmt(s_summary,
+        "%.1f km  |  %s\n"
+        "avg %.0f km/h    max %.0f km/h\n"
+        "%.0f Wh  |  %.2f Ah\n"
+        "%.1f Wh/km    min %.1f V",
+        t->distance_m / 1000.0, dur,
+        t->avg_speed_dkmh / 10.0, t->max_speed_dkmh / 10.0,
+        t->wh, t->ah, whkm, t->min_voltage_dv / 10.0);
+
+    lv_obj_add_flag(s_list_view, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(s_detail_view, LV_OBJ_FLAG_HIDDEN);
+
+    s_metric = 0;
+    for (int i = 0; i < 5; i++) style_metric_btn(s_metric_btns[i], i == 0);
+
+    request_series(t->trip_id);   /* fills s_series → on_series_ready → refresh_chart */
+}
+
+static void show_list_view(void)
+{
+    lv_label_set_text(s_title, "Trip Statistics");
+    lv_obj_add_flag(s_detail_view, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(s_list_view, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void refresh_chart(int metric)
+{
+    if (!s_chart) return;
+    int n = s_series_count > 0 ? s_series_count : 1;
+    lv_chart_set_point_count(s_chart, n);
+
+    bool two = (metric == 3);   /* temperatures: motor + FET */
+    lv_chart_hide_series(s_chart, s_ser_b, !two);
+
+    int32_t mn = INT32_MAX, mx = INT32_MIN;
+    for (int i = 0; i < s_series_count; i++) {
+        int32_t va = 0, vb = 0;
+        switch (metric) {
+        case 0: va = s_series[i].speed_dkmh / 10; break;
+        case 1: va = s_series[i].power_w;         break;
+        case 2: va = s_series[i].voltage_dv / 10; break;
+        case 3: va = s_series[i].temp_motor_dc / 10; vb = s_series[i].temp_fet_dc / 10; break;
+        default: va = s_series[i].batt_pct;       break;
+        }
+        lv_chart_set_value_by_id(s_chart, s_ser_a, i, va);
+        if (two) lv_chart_set_value_by_id(s_chart, s_ser_b, i, vb);
+        if (va < mn) mn = va;
+        if (va > mx) mx = va;
+        if (two) {
+            if (vb < mn) mn = vb;
+            if (vb > mx) mx = vb;
+        }
+    }
+    if (s_series_count == 0) { mn = 0; mx = 1; }
+    if (mn == mx) { mn -= 1; mx += 1; }
+    int32_t pad = (mx - mn) / 10; if (pad < 1) pad = 1;
+    lv_chart_set_range(s_chart, LV_CHART_AXIS_PRIMARY_Y, mn - pad, mx + pad);
+    lv_chart_refresh(s_chart);
+
+    const char *t;
+    switch (metric) {
+    case 0: t = "Speed (km/h)";            break;
+    case 1: t = "Power (W)";               break;
+    case 2: t = "Voltage (V)";             break;
+    case 3: t = "Temp (C)  motor / FET";   break;
+    default: t = "Battery (%)";            break;
+    }
+    lv_label_set_text(s_chart_title, t);
+    s_metric = metric;
+}
+
+/* ===================== async hand-off ===================== */
+
+static void on_trips_ready(void *p)
+{
+    (void)p;
+    if (!s_alive) return;
+    s_busy = false;
+    hide_spinner();
+    populate_list();
+}
+
+static void on_series_ready(void *p)
+{
+    (void)p;
+    if (!s_alive) return;
+    s_busy = false;
+    hide_spinner();
+    refresh_chart(0);
+}
+
+/* ===================== events ===================== */
+
+static void table_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+    if (s_busy) return;
+    uint16_t row, col;
+    lv_table_get_selected_cell(s_table, &row, &col);
+    if (row == LV_TABLE_CELL_NONE || row == 0) return;   /* header / none */
+    open_detail((int)row - 1);
+}
+
+static void style_metric_btn(lv_obj_t *b, bool sel)
+{
+    lv_obj_set_style_bg_color(b, lv_color_hex(sel ? COL_ACCENT : COL_BTN), 0);
+    lv_obj_set_style_text_color(b, lv_color_hex(sel ? COL_BG : COL_TEXT), 0);
+}
+
+static void set_metric(int m)
+{
+    for (int i = 0; i < 5; i++) style_metric_btn(s_metric_btns[i], i == m);
+    refresh_chart(m);
+}
+
+static void metric_btn_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    set_metric((int)(intptr_t)lv_event_get_user_data(e));
+}
+
+static void back_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    if (s_busy) return;
+    if (!lv_obj_has_flag(s_detail_view, LV_OBJ_FLAG_HIDDEN)) {
+        show_list_view();   /* detail → list */
+        return;
+    }
+    lv_scr_load_anim(guider_ui.dashboard, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
+}
+
+static void screen_unloaded_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_SCREEN_UNLOADED) return;
+    s_alive = false;
+    if (s_live_timer) { lv_timer_del(s_live_timer); s_live_timer = NULL; }
+    if (s_screen) { lv_obj_del_async(s_screen); s_screen = NULL; }
+    s_spinner_modal = NULL;
+    s_table = s_totals = s_empty_lbl = NULL;
+    s_summary = s_chart = s_chart_title = NULL;
+    for (int i = 0; i < 5; i++) s_metric_btns[i] = NULL;
+    s_list_view = s_detail_view = s_title = s_back_btn = NULL;
+    s_busy = false;
+}
+
+/* ===================== build ===================== */
+
+static const char *s_metric_names[5] = { "Speed", "Power", "Voltage", "Temp", "Batt" };
+
+static void build_screen(void)
+{
+    s_screen = lv_obj_create(NULL);
+    lv_obj_set_size(s_screen, 800, 480);
+    lv_obj_set_style_bg_color(s_screen, lv_color_hex(COL_BG), 0);
+    lv_obj_set_style_bg_opa(s_screen, 255, 0);
+    lv_obj_clear_flag(s_screen, LV_OBJ_FLAG_SCROLLABLE);
+
+    /* header */
+    s_title = lv_label_create(s_screen);
+    lv_label_set_text(s_title, "Trip Statistics");
+    lv_obj_set_pos(s_title, 16, 14);
+    lv_obj_set_style_text_color(s_title, lv_color_hex(COL_ACCENT), 0);
+    lv_obj_set_style_text_font(s_title, &lv_font_montserrat_24, 0);
+
+    s_back_btn = lv_btn_create(s_screen);
+    lv_obj_set_pos(s_back_btn, 696, 8);
+    lv_obj_set_size(s_back_btn, 92, 40);
+    lv_obj_set_style_bg_color(s_back_btn, lv_color_hex(COL_BTN), 0);
+    lv_obj_set_style_radius(s_back_btn, 6, 0);
+    lv_obj_set_style_border_width(s_back_btn, 0, 0);
+    lv_obj_t *bl = lv_label_create(s_back_btn);
+    lv_label_set_text(bl, "Back");
+    lv_obj_set_style_text_font(bl, &lv_font_montserrat_24, 0);
+    lv_obj_center(bl);
+    lv_obj_add_event_cb(s_back_btn, back_cb, LV_EVENT_CLICKED, NULL);
+
+    /* ---- list view ---- */
+    s_list_view = lv_obj_create(s_screen);
+    lv_obj_set_pos(s_list_view, 0, 58);
+    lv_obj_set_size(s_list_view, 800, 422);
+    lv_obj_set_style_bg_opa(s_list_view, 0, 0);
+    lv_obj_set_style_border_width(s_list_view, 0, 0);
+    lv_obj_set_style_pad_all(s_list_view, 0, 0);
+    lv_obj_clear_flag(s_list_view, LV_OBJ_FLAG_SCROLLABLE);
+
+    s_table = lv_table_create(s_list_view);
+    lv_obj_set_pos(s_table, 8, 0);
+    lv_obj_set_size(s_table, 784, 384);
+    lv_table_set_col_cnt(s_table, 5);
+    lv_table_set_col_width(s_table, 0, 90);
+    lv_table_set_col_width(s_table, 1, 180);
+    lv_table_set_col_width(s_table, 2, 160);
+    lv_table_set_col_width(s_table, 3, 150);
+    lv_table_set_col_width(s_table, 4, 170);
+    lv_obj_set_style_bg_color(s_table, lv_color_hex(COL_PANEL), LV_PART_ITEMS);
+    lv_obj_set_style_text_color(s_table, lv_color_hex(COL_TEXT), LV_PART_ITEMS);
+    lv_obj_set_style_text_font(s_table, &lv_font_montserratMedium_16, LV_PART_ITEMS);
+    lv_obj_set_style_border_color(s_table, lv_color_hex(COL_BTN), LV_PART_ITEMS);
+    lv_obj_set_style_pad_top(s_table, 10, LV_PART_ITEMS);
+    lv_obj_set_style_pad_bottom(s_table, 10, LV_PART_ITEMS);
+    lv_obj_set_style_pad_left(s_table, 8, LV_PART_ITEMS);
+    /* table MAIN bg defaults to white in the theme — match the screen so the
+     * area below the last row (and the slack past the last column) isn't white. */
+    lv_obj_set_style_bg_color(s_table, lv_color_hex(COL_BG), 0);
+    lv_obj_set_style_bg_opa(s_table, 255, 0);
+    lv_obj_set_style_border_width(s_table, 0, 0);
+    lv_obj_set_style_pad_all(s_table, 0, 0);
+    lv_obj_add_event_cb(s_table, table_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    s_totals = lv_label_create(s_list_view);
+    lv_obj_set_pos(s_totals, 12, 392);
+    lv_obj_set_style_text_color(s_totals, lv_color_hex(COL_DIM), 0);
+    lv_obj_set_style_text_font(s_totals, &lv_font_montserratMedium_16, 0);
+    lv_label_set_text(s_totals, "");
+
+    s_empty_lbl = lv_label_create(s_list_view);
+    lv_label_set_text(s_empty_lbl, "No trips recorded yet.");
+    lv_obj_set_style_text_color(s_empty_lbl, lv_color_hex(COL_DIM), 0);
+    lv_obj_set_style_text_font(s_empty_lbl, &lv_font_montserrat_24, 0);
+    lv_obj_align(s_empty_lbl, LV_ALIGN_CENTER, 0, -40);
+    lv_obj_add_flag(s_empty_lbl, LV_OBJ_FLAG_HIDDEN);
+
+    /* ---- detail view ---- */
+    s_detail_view = lv_obj_create(s_screen);
+    lv_obj_set_pos(s_detail_view, 0, 58);
+    lv_obj_set_size(s_detail_view, 800, 422);
+    lv_obj_set_style_bg_opa(s_detail_view, 0, 0);
+    lv_obj_set_style_border_width(s_detail_view, 0, 0);
+    lv_obj_set_style_pad_all(s_detail_view, 0, 0);
+    lv_obj_clear_flag(s_detail_view, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_detail_view, LV_OBJ_FLAG_HIDDEN);
+
+    s_summary = lv_label_create(s_detail_view);
+    lv_obj_set_pos(s_summary, 16, 4);
+    lv_obj_set_style_text_color(s_summary, lv_color_hex(COL_TEXT), 0);
+    lv_obj_set_style_text_font(s_summary, &lv_font_montserratMedium_16, 0);
+    lv_label_set_text(s_summary, "");
+
+    /* metric selector — five explicit buttons (a btnmatrix renders as thin
+     * strips under this theme), selected one filled lime with dark text. */
+    for (int i = 0; i < 5; i++) {
+        lv_obj_t *b = lv_btn_create(s_detail_view);
+        lv_obj_set_pos(b, 4 + i * 156, 92);
+        lv_obj_set_size(b, 148, 40);
+        lv_obj_set_style_radius(b, 6, 0);
+        lv_obj_set_style_border_width(b, 0, 0);
+        lv_obj_set_style_text_font(b, &lv_font_montserratMedium_16, 0);
+        lv_obj_t *l = lv_label_create(b);
+        lv_label_set_text(l, s_metric_names[i]);
+        lv_obj_center(l);
+        lv_obj_add_event_cb(b, metric_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        s_metric_btns[i] = b;
+        style_metric_btn(b, i == 0);
+    }
+
+    s_chart_title = lv_label_create(s_detail_view);
+    lv_obj_set_pos(s_chart_title, 16, 146);
+    lv_obj_set_style_text_color(s_chart_title, lv_color_hex(COL_DIM), 0);
+    lv_obj_set_style_text_font(s_chart_title, &lv_font_montserratMedium_16, 0);
+    lv_label_set_text(s_chart_title, "");
+
+    s_chart = lv_chart_create(s_detail_view);
+    lv_obj_set_pos(s_chart, 16, 172);
+    lv_obj_set_size(s_chart, 760, 236);
+    lv_chart_set_type(s_chart, LV_CHART_TYPE_LINE);
+    lv_chart_set_div_line_count(s_chart, 5, 8);
+    lv_chart_set_axis_tick(s_chart, LV_CHART_AXIS_PRIMARY_Y, 4, 2, 5, 1, true, 50);
+    /* Y-axis labels are drawn in the chart's left padding; the theme default
+     * (~12px) is too narrow for 3-4 digit values, so they spill past the left
+     * edge and get clipped. Reserve room so the whole axis fits in the window. */
+    lv_obj_set_style_pad_left(s_chart, 44, 0);
+    lv_obj_set_style_pad_bottom(s_chart, 8, 0);
+    lv_obj_set_style_bg_color(s_chart, lv_color_hex(COL_PANEL), 0);
+    lv_obj_set_style_border_width(s_chart, 0, 0);
+    lv_obj_set_style_text_color(s_chart, lv_color_hex(COL_DIM), 0);
+    lv_obj_set_style_width(s_chart, 0, LV_PART_INDICATOR);    /* no point markers */
+    lv_obj_set_style_height(s_chart, 0, LV_PART_INDICATOR);
+    s_ser_a = lv_chart_add_series(s_chart, lv_color_hex(COL_ACCENT), LV_CHART_AXIS_PRIMARY_Y);
+    s_ser_b = lv_chart_add_series(s_chart, lv_color_hex(COL_ORANGE), LV_CHART_AXIS_PRIMARY_Y);
+
+    lv_obj_add_event_cb(s_screen, screen_unloaded_cb, LV_EVENT_SCREEN_UNLOADED, NULL);
+}
+
+/* ===================== data source (device vs simulator) ===================== */
+
+#ifdef LV_REALDEVICE
+
+static void live_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (!s_alive || !s_table) return;
+    if (s_trip_count < 1 || !s_trips[0].is_current) return;
+    /* The current trip is always row 1 (newest first). Refresh its live fields
+     * from the running totals (the snapshot is up to 10 s stale). */
+    float km = trip_persist_get_trip_km();
+    uint32_t dur = trip_persist_get_uptime_ms() / 1000u;
+    char b[24];
+    snprintf(b, sizeof b, "%.1f", km);                 lv_table_set_cell_value(s_table, 1, 1, b);
+    fmt_dur(dur, b, sizeof b);                          lv_table_set_cell_value(s_table, 1, 2, b);
+    snprintf(b, sizeof b, "%.0f", dur > 0 ? km / (dur / 3600.0f) : 0.0f);
+    lv_table_set_cell_value(s_table, 1, 3, b);
+}
+
+static void trips_task(void *arg)
+{
+    (void)arg;
+    s_trip_count = trip_log_list_trips(s_trips, MAX_TRIPS_UI);
+    lv_async_call(on_trips_ready, NULL);
+    vTaskDelete(NULL);
+}
+
+static void series_task(void *arg)
+{
+    (void)arg;
+    s_series_count = trip_log_read_series(s_detail_trip_id, s_series, MAX_SERIES);
+    lv_async_call(on_series_ready, NULL);
+    vTaskDelete(NULL);
+}
+
+static void request_trips(void)
+{
+    s_busy = true;
+    show_spinner("Reading trips...");
+    if (xTaskCreate(trips_task, "trip_stat", 4096, NULL, 3, NULL) != pdPASS) {
+        s_trip_count = 0; on_trips_ready(NULL);
+    }
+}
+
+static void request_series(uint32_t trip_id)
+{
+    s_detail_trip_id = trip_id;
+    s_busy = true;
+    show_spinner("Reading trip...");
+    if (xTaskCreate(series_task, "trip_ser", 4096, NULL, 3, NULL) != pdPASS) {
+        s_series_count = 0; on_series_ready(NULL);
+    }
+}
+
+static void start_live(void)
+{
+    if (!s_live_timer) s_live_timer = lv_timer_create(live_cb, 1000, NULL);
+}
+
+#else  /* !LV_REALDEVICE — desktop simulator: synthetic dataset */
+
+static int synth_fill_trips(trip_summary_t *o, int max)
+{
+    static const struct { uint32_t id, dur, dist; float ah, wh; int avg, mx, minv; } demo[] = {
+        { 12, 2290, 14200, 8.6f, 410.0f, 223, 412, 462 },
+        { 11, 1263,  8000, 4.8f, 230.0f, 228, 410, 471 },
+        { 10,  760,  5100, 4.2f, 150.0f, 241, 392, 458 },
+        {  9,  550,  3200, 2.7f,  95.0f, 209, 381, 469 },
+    };
+    int n = (int)(sizeof demo / sizeof demo[0]);
+    if (n > max) n = max;
+    for (int i = 0; i < n; i++) {
+        o[i].trip_id        = demo[i].id;
+        o[i].duration_s     = demo[i].dur;
+        o[i].distance_m     = demo[i].dist;
+        o[i].sample_count   = demo[i].dur / 10;
+        o[i].ah             = demo[i].ah;
+        o[i].wh             = demo[i].wh;
+        o[i].avg_speed_dkmh = (uint16_t)demo[i].avg;
+        o[i].max_speed_dkmh = (uint16_t)demo[i].mx;
+        o[i].min_voltage_dv = (uint16_t)demo[i].minv;
+        o[i].is_current     = (i == 0);
+    }
+    return n;
+}
+
+static int synth_fill_series(uint32_t id, trip_sample_t *o, int max)
+{
+    int n = 90; if (n > max) n = max;
+    float ph = (float)(id % 7);
+    for (int i = 0; i < n; i++) {
+        float x = (float)i;
+        float spd = 22.0f + 12.0f * sinf(x / 6.0f + ph) + 4.0f * sinf(x / 2.0f);
+        if (spd < 0) spd = 0;
+        float cur = 6.0f + 9.0f * fabsf(sinf(x / 5.0f + ph));
+        float volt = 50.0f - 0.05f * x - 1.5f * sinf(x / 5.0f + ph);
+        o[i].t_s           = (uint32_t)(i * 15);
+        o[i].speed_dkmh    = (int16_t)(spd * 10.0f);
+        o[i].power_w       = (int16_t)(volt * cur);
+        o[i].voltage_dv    = (uint16_t)(volt * 10.0f);
+        o[i].temp_motor_dc = (int16_t)((35.0f + 0.15f * x) * 10.0f);
+        o[i].temp_fet_dc   = (int16_t)((30.0f + 0.10f * x) * 10.0f);
+        o[i].batt_pct      = (uint8_t)(95 - (i * 60) / n);
+    }
+    return n;
+}
+
+static void request_trips(void)
+{
+    s_trip_count = synth_fill_trips(s_trips, MAX_TRIPS_UI);
+    on_trips_ready(NULL);
+}
+
+static void request_series(uint32_t trip_id)
+{
+    s_detail_trip_id = trip_id;
+    s_series_count = synth_fill_series(trip_id, s_series, MAX_SERIES);
+    on_series_ready(NULL);
+}
+
+static void start_live(void) { }   /* no live totals in the simulator */
+
+#endif /* LV_REALDEVICE */
+
+/* ===================== entry ===================== */
+
+void show_trips_statistics(void)
+{
+    if (s_screen) return;   /* re-entrancy guard */
+
+    s_alive = false;
+    s_busy = false;
+    s_metric = 0;
+    s_trip_count = 0;
+    s_series_count = 0;
+    s_detail_idx = 0;
+    s_spinner_modal = NULL;
+    s_live_timer = NULL;
+
+    build_screen();
+    s_alive = true;
+
+    request_trips();   /* device: spinner + worker task; simulator: synthetic now */
+    start_live();
+
+    lv_scr_load_anim(s_screen, LV_SCR_LOAD_ANIM_MOVE_LEFT, 200, 0, false);
+}

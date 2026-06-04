@@ -194,6 +194,7 @@ static lv_obj_t *settings_clock_m_plus_btn = NULL;
 static lv_obj_t *settings_clock_m_minus_btn = NULL;
 static lv_obj_t *settings_clock_colon_label = NULL;
 static lv_obj_t *settings_reset_button = NULL;
+static lv_obj_t *settings_reset_trip_button = NULL;
 static lv_obj_t *settings_info_label = NULL;
 
 // VESC Limits UI objects
@@ -994,12 +995,12 @@ void update_esc_connection_status(bool connected)
                 //lv_obj_add_flag(guider_ui.dashboard_Ah_text, LV_OBJ_FLAG_HIDDEN);
                 //lv_obj_add_flag(guider_ui.dashboard_Ah_const_text, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_clear_flag(guider_ui.dashboard_esc_not_connected_text, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(guider_ui.dashboard_mode_text, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(guider_ui.dashboard_statistics_button, LV_OBJ_FLAG_HIDDEN);
             } else {
                 lv_obj_add_flag(guider_ui.dashboard_esc_not_connected_text, LV_OBJ_FLAG_HIDDEN);
                 //lv_obj_clear_flag(guider_ui.dashboard_Ah_const_text, LV_OBJ_FLAG_HIDDEN);
                 //lv_obj_clear_flag(guider_ui.dashboard_Ah_text, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_clear_flag(guider_ui.dashboard_mode_text, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_clear_flag(guider_ui.dashboard_statistics_button, LV_OBJ_FLAG_HIDDEN);
             }
         }
     }
@@ -1874,6 +1875,20 @@ static void qr_open_btn_event_cb(lv_event_t *e) {
                      200, 0, false);
 }
 
+// Event handler for "Reset trip" — zero trip / Ah without touching settings.
+// Sometimes the trip doesn't auto-reset on battery swap, so a manual button.
+static void reset_trip_button_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) {
+        return;
+    }
+#ifdef LV_REALDEVICE
+    battery_calc_reset_trip_and_ah();
+#endif
+    if (settings_info_label) {
+        lv_label_set_text(settings_info_label, "Trip reset");
+    }
+}
+
 // Event handler for Reset button
 static void reset_button_event_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
@@ -2554,6 +2569,28 @@ void settings_ui_init(lv_ui *ui) {
 
     y_pos += spacing;
 */
+    // ========== Reset trip (own row) ===================================
+    // Sometimes the trip doesn't auto-reset on battery swap — manual button.
+    // Orange (caution) and physically separated from the destructive "Reset"
+    // (all settings) below.
+    y_pos += 10;
+
+    settings_reset_trip_button = lv_btn_create(ui->settings);
+    lv_obj_t *reset_trip_label = lv_label_create(settings_reset_trip_button);
+    lv_label_set_text(reset_trip_label, "Reset trip");
+    lv_obj_align(reset_trip_label, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_pos(settings_reset_trip_button, 20, y_pos);
+    lv_obj_set_size(settings_reset_trip_button, 245, 50);
+    lv_obj_set_style_bg_color(settings_reset_trip_button, lv_color_hex(0xff8800), 0);
+    lv_obj_set_style_text_color(settings_reset_trip_button, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(settings_reset_trip_button, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_radius(settings_reset_trip_button, 8, 0);
+    lv_obj_set_style_border_width(settings_reset_trip_button, 0, 0);
+    lv_obj_add_event_cb(settings_reset_trip_button, reset_trip_button_event_cb,
+                        LV_EVENT_CLICKED, NULL);
+
+    y_pos += SETTINGS_ROW_H;
+
     // ========== Logs + QR codes + Reset (three buttons in one row) =====
     y_pos += 10; // small visual break before the destructive action
 

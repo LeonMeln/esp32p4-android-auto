@@ -25,6 +25,13 @@ void settings_ui_init(lv_ui *ui);
  * custom/vesc_tool_menu.c. */
 void run_vesc_tool_menu(void);
 
+/* Trip statistics window. Opened from the dashboard STATISTICS button
+ * (events_init.c). Reads the raw trip log (components/trip_log) and shows a
+ * scrollable trip list + per-trip detail with charts. On the desktop simulator
+ * (or when the VESC emulator is on / the log is empty) it falls back to
+ * synthetic trips so the UI stays demoable. Defined in custom/trip_statistics.c. */
+void show_trips_statistics(void);
+
 void update_current(float current);
 void update_speed(float speed);
 void update_battery_proc(float battery_proc);

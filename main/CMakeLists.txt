@@ -35,7 +35,6 @@ idf_component_register(
         "vesc_ui_updater.c"
         "vesc_sim.c"
         "vbat_routing.c"
-        "trip_log.c"
     INCLUDE_DIRS "."
     REQUIRES
         nvs_flash
@@ -69,6 +68,7 @@ idf_component_register(
         vesc_config
         dev_settings
         log_capture
+        trip_log
 )
 
 # Reroute mbedTLS's UTCTime parser to our offset-tolerant wrapper. Required

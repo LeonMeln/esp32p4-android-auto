@@ -104,7 +104,7 @@ void setup_scr_dashboard(lv_ui *ui)
     ui->dashboard_uptime_text = lv_label_create(ui->dashboard);
     lv_label_set_text(ui->dashboard_uptime_text, "--:--:--");
     lv_label_set_long_mode(ui->dashboard_uptime_text, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->dashboard_uptime_text, 215, 5);
+    lv_obj_set_pos(ui->dashboard_uptime_text, 205, 5);
     lv_obj_set_size(ui->dashboard_uptime_text, 110, 30);
 
     //Write style for dashboard_uptime_text, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
@@ -2318,6 +2318,30 @@ void setup_scr_dashboard(lv_ui *ui)
     lv_obj_set_style_radius(ui->dashboard_music_info, 0, LV_PART_SCROLLBAR|LV_STATE_DEFAULT);
 
 
+
+    //Write codes dashboard_statistics_button
+    ui->dashboard_statistics_button = lv_label_create(ui->dashboard);
+    lv_label_set_text(ui->dashboard_statistics_button, "STATISTICS");
+    lv_label_set_long_mode(ui->dashboard_statistics_button, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(ui->dashboard_statistics_button, 320, 5);
+    lv_obj_set_size(ui->dashboard_statistics_button, 164, 30);
+    lv_obj_add_flag(ui->dashboard_statistics_button, LV_OBJ_FLAG_CLICKABLE);
+
+    //Write style for dashboard_statistics_button, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    lv_obj_set_style_border_width(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui->dashboard_statistics_button, lv_color_hex(0xB6FF2E), LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui->dashboard_statistics_button, &lv_font_montserratMedium_24, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui->dashboard_statistics_button, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_letter_space(ui->dashboard_statistics_button, 2, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_line_space(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui->dashboard_statistics_button, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(ui->dashboard_statistics_button, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //The custom code of dashboard.
 

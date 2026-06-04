@@ -75,12 +75,28 @@ static void dashboard_brightness_slider_event_handler (lv_event_t *e)
     }
 }
 
+static void dashboard_statistics_button_event_handler (lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        //for claude code
+        show_trips_statistics();
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 void events_init_dashboard (lv_ui *ui)
 {
     lv_obj_add_event_cb(ui->dashboard, dashboard_event_handler, LV_EVENT_ALL, ui);
     lv_obj_add_event_cb(ui->dashboard_status_vesc, dashboard_status_vesc_event_handler, LV_EVENT_ALL, ui);
     lv_obj_add_event_cb(ui->dashboard_Settings_text, dashboard_Settings_text_event_handler, LV_EVENT_ALL, ui);
     lv_obj_add_event_cb(ui->dashboard_brightness_slider, dashboard_brightness_slider_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->dashboard_statistics_button, dashboard_statistics_button_event_handler, LV_EVENT_ALL, ui);
 }
 
 static void settings_event_handler (lv_event_t *e)

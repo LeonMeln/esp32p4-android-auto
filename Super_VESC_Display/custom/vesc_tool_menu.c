@@ -1049,6 +1049,7 @@ static void detect_cb(lv_event_t *e)
     lv_obj_set_style_border_color(dlg, lv_color_hex(COL_ORANGE), 0);
     lv_obj_set_style_border_width(dlg, 2, 0);
     lv_obj_set_style_radius(dlg, 8, 0);
+    lv_obj_set_style_pad_all(dlg, 0, 0);   /* children use absolute coords; theme's 20px card pad would push the bottom/right buttons off-window */
     lv_obj_clear_flag(dlg, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *t = lv_label_create(dlg);
@@ -1143,6 +1144,7 @@ static void restore_cb(lv_event_t *e)
     lv_obj_set_style_border_color(dlg, lv_color_hex(COL_CYAN), 0);
     lv_obj_set_style_border_width(dlg, 2, 0);
     lv_obj_set_style_radius(dlg, 8, 0);
+    lv_obj_set_style_pad_all(dlg, 0, 0);   /* children use absolute coords; theme's 20px card pad would push the bottom/right buttons off-window */
     lv_obj_clear_flag(dlg, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *t = lv_label_create(dlg);

@@ -116,6 +116,7 @@ typedef struct
 	lv_obj_t *dashboard_brightness_slider;
 	lv_obj_t *dashboard_music_info;
 	lv_obj_t *dashboard_music_info_tile;
+	lv_obj_t *dashboard_statistics_button;
 	lv_obj_t *settings;
 	bool settings_del;
 	lv_obj_t *settings_exit_button;
