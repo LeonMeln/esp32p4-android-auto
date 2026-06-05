@@ -3,25 +3,38 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "sdkconfig.h"
 #include "driver/gpio.h"
 
 /* P4 ↔ D1 Mini BT-agent UART link.
  *
- * Wiring (J3 header on the Waveshare board):
- *   P4 GPIO 22 (TX)   →  D1 Mini GPIO 16 (RX2)
- *   P4 GPIO 21 (RX)   ←  D1 Mini GPIO 17 (TX2)
- *   P4 GPIO 24 (RST)  →  D1 Mini EN/RST  (push-pull, no external pull-up on this board)
- *   P4 GPIO 25 (IO0)  →  D1 Mini GPIO 0  (push-pull, no external pull-up on this board)
+ * Wiring differs per board (pins picked from each board's free header):
+ *
+ *   Waveshare 4.3" (J3 header):          Guition JC4880P443C:
+ *     P4 GPIO 22 (TX) → D1 Mini RX2        P4 GPIO 33 (TX) → external ESP32 RX
+ *     P4 GPIO 21 (RX) ← D1 Mini TX2        P4 GPIO 31 (RX) ← external ESP32 TX
+ *     P4 GPIO 24 (RST)→ D1 Mini EN/RST     P4 GPIO 30 (RST)→ external ESP32 EN/RST
+ *     P4 GPIO 25 (IO0)→ D1 Mini GPIO 0     P4 GPIO 29 (IO0)→ external ESP32 GPIO 0
+ *
+ * RST/IO0 are driven push-pull (no external pull-ups on these boards).
  *
  * Bidirectional: P4 publishes WiFi-AP credentials over the BT agent for the
  * AA Wireless handshake; the agent reports state events + ESP_LOG output back. */
 
 /* Strap pin numbers — exposed so bt_agent_ota can drive them via
- * esp_serial_flasher's port (it manages reset/IO0 itself during flash). */
+ * esp_serial_flasher's port (it manages reset/IO0 itself during flash).
+ * Board-conditional via the Kconfig `choice BOARD_MODEL`. */
+#if CONFIG_BOARD_JC4880P443C
+#define BT_AGENT_RST_PIN  GPIO_NUM_30
+#define BT_AGENT_IO0_PIN  GPIO_NUM_29
+#define BT_AGENT_UART_TX  GPIO_NUM_33
+#define BT_AGENT_UART_RX  GPIO_NUM_31
+#else /* CONFIG_BOARD_WAVESHARE_43 */
 #define BT_AGENT_RST_PIN  GPIO_NUM_24
 #define BT_AGENT_IO0_PIN  GPIO_NUM_25
 #define BT_AGENT_UART_TX  GPIO_NUM_22
 #define BT_AGENT_UART_RX  GPIO_NUM_21
+#endif
 #define BT_AGENT_UART_PORT  1   /* UART_NUM_1 — keep as plain int for esp_serial_flasher cfg */
 
 /* Bring the agent into normal-boot mode: configure RST/IO0 as open-drain,

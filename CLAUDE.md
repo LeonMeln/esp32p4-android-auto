@@ -328,6 +328,45 @@ idf.py build
 idf.py -p <PORT> flash monitor
 ```
 
+## Поддержка нескольких девайсов (мульти-борд)
+
+Прошивка собирается под несколько плат ESP32-P4. Обычный `idf.py build`
+собирает под **Waveshare 4.3"** (дефолт, обратная совместимость). Для выбора
+платы есть `scripts/build_board.sh <board> <аргументы idf.py>`:
+
+```bash
+scripts/build_board.sh                                   # собрать ВСЕ платы (или `all`)
+scripts/build_board.sh waveshare flash monitor
+scripts/build_board.sh jc4880 -p <PORT> flash monitor   # Guition JC4880P443C, 16 МБ флеш
+```
+
+Механизм:
+- **Kconfig `choice BOARD_MODEL`** (`main/Kconfig.projbuild`):
+  `CONFIG_BOARD_WAVESHARE_43` (дефолт) / `CONFIG_BOARD_JC4880P443C`. Глобален →
+  читается в BSP и `main/bt_link.h`.
+- **`build_board.sh`** собирает в отдельную `build_<board>/` и накладывает
+  оверлей: `SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.<board>"`
+  (поздний файл переопределяет ранний). Базовый `sdkconfig.defaults` = Waveshare.
+- **Пины/тайминги, не выражаемые через готовый Kconfig** (подсветка/reset LCD,
+  I2S DSIN/PA, DPI-тайминги панели, vendor-init ST7701, пины BT-агента) — через
+  `#if CONFIG_BOARD_JC4880P443C` в BSP (`components/esp32_p4_wifi6_touch_lcd_4_3/`)
+  и `main/bt_link.h`.
+- **sdkconfig-оверлеи** задают флеш, имя партишен-файла, CAN-пины, выбор борда:
+  `sdkconfig.defaults.waveshare` (32 МБ, `partitions.csv`, CAN 48/47) и
+  `sdkconfig.defaults.jc4880` (16 МБ, `partitions_16mb.csv`, CAN 51/52).
+- **JC = 16 МБ** → отдельная `partitions_16mb.csv`: OTA 6 МБ ×2 + storage 1 МБ +
+  triplog ~2.9 МБ. Образ ~5.3 МБ → запас в слоте ~0.7 МБ, следить за ростом.
+- **JC пины** (свободный хедер): BT-агент `TX=33 RX=31 RST=30 IO0=29`,
+  CAN `RX=52 TX=51`, подсветка LCD `23`, reset LCD `5`. Дисплей ST7701S,
+  DPI 34 МГц, vendor-init по умолчанию драйвера; WiFi (SDIO→C6), I2C тача,
+  SD — совпадают с Waveshare.
+- **Идентификатор модели** `BOARD_MODEL_ID` (`main/board.h`, `"waveshare"`/
+  `"jc4880"`) прошивка сообщает приложению (BLE OTA-info `…0006` 6-м полем +
+  `GET /info`), чтобы APK выбрал правильный из вшитых бинарей.
+- **Релиз** (`scripts/release.sh`) собирает все борды, кладёт per-device бинари
+  `release/esp32p4_android_auto-<board>-<ver>.bin` и один APK с обеими прошивками.
+  Блобы C6 / BT-агента общие для всех плат.
+
 ## Воспроизведение игнорируемых артефактов
 
 Каталоги `tools/` и `research/_sources/` намеренно не закоммичены

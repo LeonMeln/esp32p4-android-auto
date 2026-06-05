@@ -1,5 +1,25 @@
 menu "Android Auto Head Unit"
 
+    choice BOARD_MODEL
+        prompt "Target hardware board"
+        default BOARD_WAVESHARE_43
+        help
+            Selects the physical head-unit board. Drives board-specific GPIO
+            pins (LCD backlight/reset, I2S, BT-agent UART) and MIPI-DSI panel
+            timing that can't be expressed through plain Kconfig — see the
+            CONFIG_BOARD_* #if branches in the BSP and main/bt_link.h.
+
+            This choice alone does NOT set flash size / partition table / CAN
+            pins; those live in the per-board sdkconfig.defaults.<board> overlay
+            (see scripts/build_board.sh). Keep them in lockstep with this choice.
+
+        config BOARD_WAVESHARE_43
+            bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3 (32 MB flash)"
+
+        config BOARD_JC4880P443C
+            bool "Guition JC4880P443C_I_W (16 MB flash)"
+    endchoice
+
     choice AA_WIFI_ROLE
         prompt "WiFi role"
         default AA_WIFI_ROLE_AP

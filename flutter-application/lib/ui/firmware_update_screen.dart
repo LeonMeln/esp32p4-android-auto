@@ -20,6 +20,7 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
   final _hostCtrl = TextEditingController(text: FirmwareUpdater.defaultHost);
 
   String? _deviceVersion;
+  String? _deviceModel;
   String? _bundled;
   bool _loading = true;
   bool _busy = false;
@@ -52,6 +53,7 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
     setState(() {
       _bundled = bundled;
       _deviceVersion = info?.version;
+      _deviceModel = info?.model;
       _loading = false;
     });
   }
@@ -78,7 +80,7 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
     );
     if (go != true) return;
     setState(() => _busy = true);
-    await _updater.run(host: host);
+    await _updater.run(host: host, model: _deviceModel);
     if (mounted) setState(() => _busy = false);
   }
 

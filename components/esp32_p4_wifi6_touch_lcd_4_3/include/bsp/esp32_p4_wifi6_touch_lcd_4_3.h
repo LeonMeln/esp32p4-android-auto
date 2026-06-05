@@ -34,11 +34,26 @@
 #define BSP_I2C_SCL           (GPIO_NUM_8)
 #define BSP_I2C_SDA           (GPIO_NUM_7)
 
-/* Audio */
+/* Audio.
+ * MCLK/SCLK/LCLK/DOUT are common to both supported boards; DSIN and the power
+ * amplifier control differ (Waveshare vs Guition JC4880P443C). */
 #define BSP_I2S_SCLK          (GPIO_NUM_12)
 #define BSP_I2S_MCLK          (GPIO_NUM_13)
 #define BSP_I2S_LCLK          (GPIO_NUM_10)
 #define BSP_I2S_DOUT          (GPIO_NUM_9)
+
+/* Board-specific pins. This component historically targeted only the Waveshare
+ * 4.3" board (hence the name); it now also drives the Guition JC4880P443C,
+ * selected via the Kconfig `choice BOARD_MODEL` (CONFIG_BOARD_JC4880P443C). */
+#if CONFIG_BOARD_JC4880P443C
+#define BSP_I2S_DSIN          (GPIO_NUM_48)
+#define BSP_POWER_AMP_IO      (GPIO_NUM_11)
+
+#define BSP_LCD_BACKLIGHT     (GPIO_NUM_23)
+#define BSP_LCD_RST           (GPIO_NUM_5)
+#define BSP_LCD_TOUCH_RST     (GPIO_NUM_NC)
+#define BSP_LCD_TOUCH_INT     (GPIO_NUM_NC)
+#else /* CONFIG_BOARD_WAVESHARE_43 */
 #define BSP_I2S_DSIN          (GPIO_NUM_11)
 #define BSP_POWER_AMP_IO      (GPIO_NUM_53)
 
@@ -46,6 +61,7 @@
 #define BSP_LCD_RST           (GPIO_NUM_27)
 #define BSP_LCD_TOUCH_RST     (GPIO_NUM_23)
 #define BSP_LCD_TOUCH_INT     (GPIO_NUM_NC)
+#endif
 
 /* uSD card */
 #define BSP_SD_D0             (GPIO_NUM_39)

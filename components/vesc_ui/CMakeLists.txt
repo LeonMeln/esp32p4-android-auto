@@ -23,10 +23,38 @@ file(GLOB SVD_IMAGES     "${SVD_ROOT}/generated/images/*.c")
 list(FILTER SVD_IMAGES   EXCLUDE REGEX ".*_grid_480_800x480\\.c$")
 file(GLOB SVD_CUSTOM     "${SVD_ROOT}/custom/*.c")
 
+# ── Cockpit Antonio fonts: subsetted from the TTF at build time ──
+# GUI Guider exports Antonio with the full ASCII range (95 glyphs) + 60 icons
+# at every size — Antonio@200 alone is 1.4 MB of flash, and the firmware only
+# renders digits / a few letters. So we DROP the GUI Guider Antonio copies from
+# the build and regenerate hard-subset versions into the build dir via
+# tools/regen_cockpit_fonts.py. Because the compiled fonts live in the build dir
+# and are derived from the .ttf, a GUI Guider "Generate Code" (which overwrites
+# generated/guider_fonts/) can never reintroduce the bloated copies here.
+# Needs node/npx; when absent the tool copies the committed subsets as fallback
+# so CI / clean checkouts still link. Keep COCKPIT_FONT_NAMES in sync with JOBS
+# in tools/regen_cockpit_fonts.py.
+list(FILTER SVD_FONTS EXCLUDE REGEX "/lv_font_Antonio_Regular_[0-9]+\\.c$")
+
+set(COCKPIT_FONT_NAMES
+    lv_font_Antonio_Regular_200 lv_font_Antonio_Regular_50
+    lv_font_Antonio_Regular_40  lv_font_Antonio_Regular_22
+    lv_font_Antonio_Regular_64  lv_font_Antonio_Regular_32)
+set(COCKPIT_FONT_DIR "${CMAKE_CURRENT_BINARY_DIR}/cockpit_fonts")
+set(COCKPIT_FONT_SRCS "")
+foreach(_cf ${COCKPIT_FONT_NAMES})
+    list(APPEND COCKPIT_FONT_SRCS "${COCKPIT_FONT_DIR}/${_cf}.c")
+endforeach()
+# The add_custom_command that produces these lives AFTER idf_component_register
+# below — add_custom_command is not available in the script-mode pass ESP-IDF
+# uses to extract component requirements, and everything before the register
+# call runs in that pass too.
+
 idf_component_register(
     SRCS
         ${SVD_GENERATED}
         ${SVD_FONTS}
+        ${COCKPIT_FONT_SRCS}
         ${SVD_IMAGES}
         ${SVD_CUSTOM}
         "vesc_ui.c"
@@ -45,6 +73,22 @@ idf_component_register(
         vesc_can
         trip_log
 )
+
+# Build-time subsetting of the cockpit Antonio fonts (see the comment block
+# above the glob). Placed here because add_custom_command is not scriptable and
+# must run only in the normal configure pass, after idf_component_register.
+set(_regen_tool  "${SVD_ROOT}/tools/regen_cockpit_fonts.py")
+set(_antonio_ttf "${SVD_ROOT}/import/font/Antonio-Regular.ttf")
+set_source_files_properties(${COCKPIT_FONT_SRCS} PROPERTIES GENERATED TRUE)
+add_custom_command(
+    OUTPUT ${COCKPIT_FONT_SRCS}
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${COCKPIT_FONT_DIR}"
+    COMMAND python3 "${_regen_tool}"
+            --out-dir "${COCKPIT_FONT_DIR}"
+            --fallback-from "${SVD_ROOT}/generated/guider_fonts"
+    DEPENDS "${_antonio_ttf}" "${_regen_tool}"
+    COMMENT "Subsetting cockpit Antonio fonts -> ${COCKPIT_FONT_DIR}"
+    VERBATIM)
 
 # LV_REALDEVICE flips settings_wrapper.c from in-RAM SIMULATOR_MODE to the
 # real NVS-backed dev_settings backend, and turns on the vesc_limits /

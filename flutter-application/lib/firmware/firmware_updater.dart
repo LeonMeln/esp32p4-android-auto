@@ -24,13 +24,26 @@ class UpdateState {
 }
 
 class FirmwareUpdater {
-  static const _asset = 'assets/firmware/esp32p4_android_auto.bin';
   static const _versionAsset = 'assets/firmware/version.txt';
+
+  /// Board model used when the head unit doesn't report one (older firmware).
+  static const _defaultModel = 'waveshare';
+
+  /// Resolve the bundled firmware asset for a given board model. The APK ships
+  /// one image per board; falls back to the default board when [model] is null
+  /// or unrecognised. Keep the slugs in sync with the firmware's BOARD_MODEL_ID
+  /// (main/board.h) and the staged asset names (scripts/stage_firmware_asset.sh).
+  static String _assetFor(String? model) {
+    const known = {'waveshare', 'jc4880'};
+    final m = known.contains(model) ? model! : _defaultModel;
+    return 'assets/firmware/esp32p4_android_auto-$m.bin';
+  }
 
   /// Default OTA host — the head unit's mDNS name (AA_MDNS_HOSTNAME + .local).
   static const defaultHost = 'android-auto.local';
 
-  /// Version string of the firmware image bundled in this APK.
+  /// Version string of the firmware image bundled in this APK. The version is
+  /// shared across boards, so it's board-agnostic.
   static Future<String> bundledVersion() async =>
       (await rootBundle.loadString(_versionAsset)).trim();
 
@@ -40,12 +53,14 @@ class FirmwareUpdater {
   void _emit(UpdatePhase p, {double progress = 0, String? message}) =>
       _ctrl.add(UpdateState(p, progress: progress, message: message));
 
-  /// POST the bundled image to http://[host]/ota. Never throws — failures
-  /// surface through the [state] stream and the bool result.
-  Future<bool> run({String host = defaultHost}) async {
+  /// POST the bundled image to http://[host]/ota. [model] selects which board's
+  /// image to send (from the head unit's reported board model); null falls back
+  /// to the default board. Never throws — failures surface through the [state]
+  /// stream and the bool result.
+  Future<bool> run({String host = defaultHost, String? model}) async {
     final url = 'http://$host/ota';
     try {
-      final bytes = (await rootBundle.load(_asset)).buffer.asUint8List();
+      final bytes = (await rootBundle.load(_assetFor(model))).buffer.asUint8List();
       _emit(UpdatePhase.uploading, progress: 0,
           message: 'Загрузка прошивки (${(bytes.length / 1024).round()} КБ)…');
       final ok = await _post(url, bytes);

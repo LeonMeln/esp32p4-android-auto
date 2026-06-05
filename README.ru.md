@@ -232,9 +232,42 @@ idf.py set-target esp32p4
 idf.py -p /dev/cu.usbmodem* flash monitor
 ```
 
+Обычная сборка `idf.py` собирает под плату **Waveshare 4.3"** (по умолчанию).
+
 > WiFi прошивка ESP32-C6 (`network_adapter.bin`) встроена в основной бинарь
 > через `EMBED_FILES` и заливается на C6 по SDIO при старте, если версии не
 > совпадают. Отдельно C6 прошивать не нужно.
+
+#### Несколько плат
+
+Прошивка поддерживает несколько плат ESP32-P4. Выбор платы —
+`scripts/build_board.sh <board> <аргументы idf.py…>`: скрипт использует
+отдельную build-директорию и накладывает оверлей `sdkconfig.defaults.<board>`:
+
+| Плата | Slug | Флеш | Примечание |
+|---|---|---|---|
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3 | `waveshare` | 32 МБ | по умолчанию (это же собирает обычный `idf.py`) |
+| Guition JC4880P443C_I_W | `jc4880` | 16 МБ | ST7701S, уменьшенная партишен-таблица (`partitions_16mb.csv`) |
+
+```bash
+scripts/build_board.sh                              # собрать прошивки под ВСЕ платы
+scripts/build_board.sh waveshare flash monitor
+scripts/build_board.sh jc4880 -p /dev/cu.usbmodem* flash monitor
+```
+
+Без аргумента (или `all`) — собираются образы под все платы за один прогон.
+
+Что различается по платам (всё остальное — WiFi/SDIO→C6, I2C тача, SD, бо́льшая
+часть шины I2S — общее): тайминги MIPI-DSI панели и vendor-init, пины подсветки/
+reset LCD, пины UART BT-агента, пины CAN RX/TX, размер флеша и партишен-таблица.
+Плата выбирается Kconfig-`choice BOARD_MODEL`
+(`CONFIG_BOARD_WAVESHARE_43` / `CONFIG_BOARD_JC4880P443C`); см. ветки
+`#if CONFIG_BOARD_JC4880P443C` в BSP и `main/bt_link.h`.
+
+**Карта пинов JC4880P443C** (свободный хедер): UART BT-агента `TX=33 RX=31`,
+`RST=30 IO0=29`; CAN `RX=52 TX=51`; подсветка LCD `23`, reset `5`.
+В 16 МБ влезают две OTA-партиции по 6 МБ + 1 МБ storage + ~2.9 МБ trip log —
+у образа (~5.3 МБ) остаётся ~0.7 МБ запаса в слоте, следи за ростом размера.
 
 ### 2. (Опционально) Прошивка BT-агента — D1 Mini ESP32
 

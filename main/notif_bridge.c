@@ -17,6 +17,7 @@
  * not at boot. */
 
 #include "notif_bridge.h"
+#include "board.h"
 
 #include <string.h>
 
@@ -70,9 +71,11 @@ static const ble_uuid128_t NB_TIME_UUID = BLE_UUID128_INIT(
 /* OTA-INFO char — READ returns the SoftAP credentials + OTA HTTP endpoint
  * + running firmware version so the companion app can auto-join the head
  * unit's AP and POST a bundled firmware image to it. Newline-joined UTF-8:
- *   "<ip>\n<port>\n<ssid>\n<password>\n<version>"
- * The app probes for this characteristic; firmware without it doesn't
- * expose ...0006 and the app hides the "update firmware" action. */
+ *   "<ip>\n<port>\n<ssid>\n<password>\n<version>\n<board-model>"
+ * The trailing <board-model> (e.g. "waveshare"/"jc4880") lets the app pick the
+ * matching bundled image; it was added later, so older apps that stop at 5
+ * fields stay compatible. The app probes for this characteristic; firmware
+ * without it doesn't expose ...0006 and the app hides the "update" action. */
 static const ble_uuid128_t NB_OTA_UUID = BLE_UUID128_INIT(
     0x06, 0x00, 0x6E, 0x1A, 0x9F, 0x2C, 0x5C, 0x9D,
     0x2A, 0x4D, 0x8E, 0x3F, 0x00, 0x4F, 0x4E, 0x7B);
@@ -450,9 +453,10 @@ static int access_cb(uint16_t conn, uint16_t attr,
         return 0;
     }
     if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR && attr == s_ota_handle) {
-        /* "<ip>\n<port>\n<ssid>\n<password>\n<version>" — the app joins
-         * the SoftAP and POSTs firmware to http://<ip>:<port>/ota. IP is
-         * the SoftAP gateway (fixed 192.168.4.1 by esp_netif default). */
+        /* "<ip>\n<port>\n<ssid>\n<password>\n<version>\n<board-model>" — the
+         * app joins the SoftAP and POSTs the matching firmware image to
+         * http://<ip>:<port>/ota. IP is the SoftAP gateway (fixed 192.168.4.1
+         * by esp_netif default). */
 #ifdef CONFIG_OTA_HTTP_PORT
         const int ota_port = CONFIG_OTA_HTTP_PORT;
 #else
@@ -461,11 +465,12 @@ static int access_cb(uint16_t conn, uint16_t attr,
         const wifi_ap_info_t *ap = wifi_manager_get_ap_info();
         const esp_app_desc_t *desc = esp_app_get_description();
         char info[160];
-        int n = snprintf(info, sizeof(info), "192.168.4.1\n%d\n%s\n%s\n%s",
+        int n = snprintf(info, sizeof(info), "192.168.4.1\n%d\n%s\n%s\n%s\n%s",
                          ota_port,
                          ap ? ap->ssid : "",
                          ap ? ap->password : "",
-                         desc ? desc->version : "");
+                         desc ? desc->version : "",
+                         BOARD_MODEL_ID);
         if (n < 0) return BLE_ATT_ERR_UNLIKELY;
         if (n > (int)sizeof(info)) n = sizeof(info);
         return os_mbuf_append(ctxt->om, info, n) == 0

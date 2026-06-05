@@ -8,6 +8,10 @@
 #   BIN=path/to/app.bin scripts/ota_push.sh [host]
 #   PORT=8080 scripts/ota_push.sh 10.0.0.5
 #
+# For a board built via scripts/build_board.sh, point BIN at that board's
+# build dir, e.g.:
+#   BIN=build_jc4880/esp32p4_android_auto.bin scripts/ota_push.sh
+#
 # Env:
 #   BIN   path to app binary             (default: build/esp32p4_android_auto.bin)
 #   PORT  HTTP port on the device        (default: 80)

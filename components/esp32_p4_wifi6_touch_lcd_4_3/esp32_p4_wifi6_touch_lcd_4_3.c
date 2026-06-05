@@ -23,6 +23,11 @@
 
 static const char *TAG = "ESP32_P4_4_3";
 
+#if !CONFIG_BOARD_JC4880P443C
+/* Board-specific ST7701 power/gamma init. Only the active board's table is
+ * compiled in (avoids an unused-variable warning + saves .rodata). Do NOT rely
+ * on the esp_lcd_st7701 driver's built-in vendor_specific_init_default — it
+ * targets a different panel and leaves both of our boards with a blank screen. */
 static const st7701_lcd_init_cmd_t vendor_specific_init_default[] = {
     {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x13}, 5, 0},
     {0xEF, (uint8_t[]){0x08}, 1, 0},
@@ -73,6 +78,52 @@ static const st7701_lcd_init_cmd_t vendor_specific_init_default[] = {
     {0x11, (uint8_t[]){0x00}, 0, 120},
     {0x29, (uint8_t[]){0x00}, 0, 0},
 };
+#else
+/* Guition JC4880P443C-specific ST7701S power/gamma init. Same command structure
+ * as the Waveshare table but with the Guition panel's own power (C2) and gamma
+ * (B0/B1, BK1 B1) values — verified working on the RetroESP32-P4 reference. */
+static const st7701_lcd_init_cmd_t vendor_specific_init_jc4880[] = {
+    {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x13}, 5, 0},
+    {0xEF, (uint8_t[]){0x08}, 1, 0},
+    {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x10}, 5, 0},
+    {0xC0, (uint8_t[]){0x63, 0x00}, 2, 0},
+    {0xC1, (uint8_t[]){0x0D, 0x02}, 2, 0},
+    {0xC2, (uint8_t[]){0x10, 0x08}, 2, 0},
+    {0xCC, (uint8_t[]){0x10}, 1, 0},
+    {0xB0, (uint8_t[]){0x80, 0x09, 0x53, 0x0C, 0xD0, 0x07, 0x0C, 0x09, 0x09, 0x28, 0x06, 0xD4, 0x13, 0x69, 0x2B, 0x71}, 16, 0},
+    {0xB1, (uint8_t[]){0x80, 0x94, 0x5A, 0x10, 0xD3, 0x06, 0x0A, 0x08, 0x08, 0x25, 0x03, 0xD3, 0x12, 0x66, 0x6A, 0x0D}, 16, 0},
+    {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x11}, 5, 0},
+    {0xB0, (uint8_t[]){0x5D}, 1, 0},
+    {0xB1, (uint8_t[]){0x58}, 1, 0},
+    {0xB2, (uint8_t[]){0x87}, 1, 0},
+    {0xB3, (uint8_t[]){0x80}, 1, 0},
+    {0xB5, (uint8_t[]){0x4E}, 1, 0},
+    {0xB7, (uint8_t[]){0x85}, 1, 0},
+    {0xB8, (uint8_t[]){0x21}, 1, 0},
+    {0xB9, (uint8_t[]){0x10, 0x1F}, 2, 0},
+    {0xBB, (uint8_t[]){0x03}, 1, 0},
+    {0xBC, (uint8_t[]){0x00}, 1, 0},
+    {0xC1, (uint8_t[]){0x78}, 1, 0},
+    {0xC2, (uint8_t[]){0x78}, 1, 0},
+    {0xD0, (uint8_t[]){0x88}, 1, 0},
+    {0xE0, (uint8_t[]){0x00, 0x3A, 0x02}, 3, 0},
+    {0xE1, (uint8_t[]){0x04, 0xA0, 0x00, 0xA0, 0x05, 0xA0, 0x00, 0xA0, 0x00, 0x40, 0x40}, 11, 0},
+    {0xE2, (uint8_t[]){0x30, 0x00, 0x40, 0x40, 0x32, 0xA0, 0x00, 0xA0, 0x00, 0xA0, 0x00, 0xA0, 0x00}, 13, 0},
+    {0xE3, (uint8_t[]){0x00, 0x00, 0x33, 0x33}, 4, 0},
+    {0xE4, (uint8_t[]){0x44, 0x44}, 2, 0},
+    {0xE5, (uint8_t[]){0x09, 0x2E, 0xA0, 0xA0, 0x0B, 0x30, 0xA0, 0xA0, 0x05, 0x2A, 0xA0, 0xA0, 0x07, 0x2C, 0xA0, 0xA0}, 16, 0},
+    {0xE6, (uint8_t[]){0x00, 0x00, 0x33, 0x33}, 4, 0},
+    {0xE7, (uint8_t[]){0x44, 0x44}, 2, 0},
+    {0xE8, (uint8_t[]){0x08, 0x2D, 0xA0, 0xA0, 0x0A, 0x2F, 0xA0, 0xA0, 0x04, 0x29, 0xA0, 0xA0, 0x06, 0x2B, 0xA0, 0xA0}, 16, 0},
+    {0xEB, (uint8_t[]){0x00, 0x00, 0x4E, 0x4E, 0x00, 0x00, 0x00}, 7, 0},
+    {0xEC, (uint8_t[]){0x08, 0x01}, 2, 0},
+    {0xED, (uint8_t[]){0xB0, 0x2B, 0x98, 0xA4, 0x56, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF7, 0x65, 0x4A, 0x89, 0xB2, 0x0B}, 16, 0},
+    {0xEF, (uint8_t[]){0x08, 0x08, 0x08, 0x45, 0x3F, 0x54}, 6, 0},
+    {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x00}, 5, 0},
+    {0x11, (uint8_t[]){0x00}, 1, 120},
+    {0x29, (uint8_t[]){0x00}, 1, 20},
+};
+#endif /* !CONFIG_BOARD_JC4880P443C */
 
 static lv_indev_t *disp_indev = NULL;
 
@@ -387,7 +438,15 @@ esp_err_t bsp_display_brightness_init(void)
         .timer_sel = 1,
         .duty = 0,
         .hpoint = 0,
+        /* Backlight PWM polarity differs by board: the Waveshare backlight
+         * driver expects an inverted PWM, while the Guition JC4880P443C is
+         * active-high (non-inverted) — inverting it there flips the brightness
+         * curve (0% = bright, 100% = dark). */
+#if CONFIG_BOARD_JC4880P443C
+        .flags = {.output_invert = 0}};
+#else
         .flags = {.output_invert = 1}};
+#endif
     const ledc_timer_config_t LCD_backlight_timer = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_10_BIT,
@@ -503,30 +562,52 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
     };
     ESP_GOTO_ON_ERROR(esp_lcd_new_panel_io_dbi(mipi_dsi_bus, &dbi_config, &io), err, TAG, "New panel IO failed");
 
-    ESP_LOGI(TAG, "Install Waveshare ESP32-P4-WIFI6-Touch-LCD-4B LCD control panel");
-    esp_lcd_dpi_panel_config_t dpi_config = {                                                 
-        .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,  
-        .dpi_clock_freq_mhz = 30,
-        .virtual_channel = 0,                         
-        .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,                    
-        .num_fbs = 1,                                 
-        .video_timing = {                             
-            .h_size = 480,                            
-            .v_size = 800,                            
-            .hsync_back_porch = 42,                   
-            .hsync_pulse_width = 12,                  
-            .hsync_front_porch = 42,                  
-            .vsync_back_porch = 2,                    
-            .vsync_pulse_width = 8,                   
-            .vsync_front_porch = 60,                  
-        },                                            
-        .flags.use_dma2d = true,                      
+    /* Both supported boards drive a 480x800 ST7701(S) panel over 2-lane MIPI-DSI
+     * @ 500 Mbps, RGB565, with identical hsync timing (42/12/42). They differ
+     * in the DPI pixel clock and the vsync porch split, and in the panel
+     * vendor init sequence — each board ships its own custom power/gamma init
+     * (see vendor_specific_init_default / vendor_specific_init_jc4880 above). */
+#if CONFIG_BOARD_JC4880P443C
+    ESP_LOGI(TAG, "Install Guition JC4880P443C LCD control panel");
+    const int dpi_clock_freq_mhz = 34;
+    const int vsync_back_porch   = 8;
+    const int vsync_pulse_width  = 2;
+    const int vsync_front_porch  = 166;
+#else
+    ESP_LOGI(TAG, "Install Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3 LCD control panel");
+    const int dpi_clock_freq_mhz = 30;
+    const int vsync_back_porch   = 2;
+    const int vsync_pulse_width  = 8;
+    const int vsync_front_porch  = 60;
+#endif
+    esp_lcd_dpi_panel_config_t dpi_config = {
+        .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
+        .dpi_clock_freq_mhz = dpi_clock_freq_mhz,
+        .virtual_channel = 0,
+        .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+        .num_fbs = 1,
+        .video_timing = {
+            .h_size = 480,
+            .v_size = 800,
+            .hsync_back_porch = 42,
+            .hsync_pulse_width = 12,
+            .hsync_front_porch = 42,
+            .vsync_back_porch = vsync_back_porch,
+            .vsync_pulse_width = vsync_pulse_width,
+            .vsync_front_porch = vsync_front_porch,
+        },
+        .flags.use_dma2d = true,
     };
     dpi_config.num_fbs = CONFIG_BSP_LCD_DPI_BUFFER_NUMS;
 
     st7701_vendor_config_t vendor_config = {
+#if CONFIG_BOARD_JC4880P443C
+        .init_cmds = vendor_specific_init_jc4880,
+        .init_cmds_size = sizeof(vendor_specific_init_jc4880) / sizeof(st7701_lcd_init_cmd_t),
+#else
         .init_cmds = vendor_specific_init_default,
         .init_cmds_size = sizeof(vendor_specific_init_default) / sizeof(st7701_lcd_init_cmd_t),
+#endif
         .flags = {
             .use_mipi_interface = 1,
         },

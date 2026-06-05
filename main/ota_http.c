@@ -21,6 +21,7 @@
 #include "mbedtls/sha256.h"
 
 #include "ota_screen.h"
+#include "board.h"
 
 static const char *TAG = "ota_http";
 static httpd_handle_t s_server;
@@ -148,11 +149,13 @@ static esp_err_t info_get_handler(httpd_req_t *req)
         "running: %s @ 0x%08" PRIx32 " (size %" PRIu32 ")\n"
         "version: %s\n"
         "idf:     %s\n"
+        "model:   %s\n"
         "next:    %s @ 0x%08" PRIx32 " (size %" PRIu32 ")\n",
         running ? running->label : "?",
         running ? running->address : 0,
         running ? running->size : 0,
         desc.version, desc.idf_ver,
+        BOARD_MODEL_ID,
         next ? next->label : "(none)",
         next ? next->address : 0,
         next ? next->size : 0);

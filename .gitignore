@@ -1,8 +1,14 @@
 build/
+# Per-board build directories + their generated sdkconfig (scripts/build_board.sh).
+build_*/
 managed_components/
 sdkconfig
 sdkconfig.old
 .DS_Store
+
+# Firmware images staged into the APK by scripts/stage_firmware_asset.sh —
+# build artifacts, regenerated per release (version.txt is staged too).
+flutter-application/assets/firmware/*.bin
 
 # Scratch ESP-IDF projects under tools/ that were scaffolded from upstream
 # IDF examples — see CLAUDE.md for how to regenerate them when slave fw
@@ -17,6 +23,9 @@ tools/bt_agent/sdkconfig
 tools/bt_agent/sdkconfig.old
 # clangd LSP index (per-machine, auto-regenerated on file open).
 tools/bt_agent/.cache/
+
+# Claude Code local settings + scheduler lock — per-machine, not shared.
+.claude/
 
 # research/_sources/ are clones of upstream reference repos
 # (aasdk, openauto, headunit, waveshare_p4_4_3, WirelessAndroidAutoDongle).

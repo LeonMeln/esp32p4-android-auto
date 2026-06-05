@@ -1,0 +1,82 @@
+{
+    // Board-aware build/flash tasks. Run via "Terminal → Run Task…" (or
+    // Cmd/Ctrl+Shift+B for the default build) and pick the target board from the
+    // dropdown. Each task calls scripts/build_board.sh, which selects the right
+    // sdkconfig overlay (flash size, partition table, CAN pins) AND the Kconfig
+    // board choice — so switching boards is a single action.
+    //
+    // IDF_PATH is taken from the ESP-IDF extension's "idf.currentSetup" setting,
+    // and the serial port from "idf.port", so these tasks stay in sync with the
+    // extension config in .vscode/settings.json.
+    "version": "2.0.0",
+    "inputs": [
+        {
+            "id": "board",
+            "type": "pickString",
+            "description": "Target head-unit board",
+            "default": "waveshare",
+            "options": [
+                { "label": "Waveshare ESP32-P4 4.3\" (32 MB)", "value": "waveshare" },
+                { "label": "Guition JC4880P443C (16 MB)",      "value": "jc4880" }
+            ]
+        }
+    ],
+    "options": {
+        "env": {
+            "IDF_PATH": "${config:idf.currentSetup}"
+        }
+    },
+    "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "clear": true
+    },
+    "tasks": [
+        {
+            "label": "ESP-IDF: Build (pick board)",
+            "type": "shell",
+            "command": "scripts/build_board.sh ${input:board} build",
+            "problemMatcher": "$gcc",
+            "group": { "kind": "build", "isDefault": true }
+        },
+        {
+            "label": "ESP-IDF: Build ALL boards",
+            "type": "shell",
+            "command": "scripts/build_board.sh",
+            "problemMatcher": "$gcc",
+            "group": "build"
+        },
+        {
+            "label": "ESP-IDF: Flash + Monitor (pick board)",
+            "type": "shell",
+            "command": "scripts/build_board.sh ${input:board} -p ${config:idf.port} flash monitor",
+            "problemMatcher": []
+        },
+        {
+            "label": "ESP-IDF: Flash (pick board)",
+            "type": "shell",
+            "command": "scripts/build_board.sh ${input:board} -p ${config:idf.port} flash",
+            "problemMatcher": []
+        },
+        {
+            "label": "ESP-IDF: Monitor (pick board)",
+            "type": "shell",
+            "command": "scripts/build_board.sh ${input:board} -p ${config:idf.port} monitor",
+            "problemMatcher": []
+        },
+        {
+            "label": "ESP-IDF: Menuconfig (pick board)",
+            "type": "shell",
+            "command": "scripts/build_board.sh ${input:board} menuconfig",
+            "problemMatcher": []
+        },
+        {
+            "label": "ESP-IDF: Full clean (pick board)",
+            "type": "shell",
+            "command": "scripts/build_board.sh ${input:board} fullclean",
+            "problemMatcher": []
+        }
+    ]
+}

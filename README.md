@@ -229,9 +229,43 @@ idf.py set-target esp32p4
 idf.py -p /dev/cu.usbmodem* flash monitor
 ```
 
+A plain `idf.py` build targets the **Waveshare 4.3"** board (the default).
+
 > The ESP32-C6 WiFi co-firmware (`network_adapter.bin`) is bundled into the
 > main binary via `EMBED_FILES` and pushed to the C6 over SDIO on boot when
 > versions don't match — you don't flash the C6 separately.
+
+#### Multiple boards
+
+The firmware supports more than one ESP32-P4 head-unit board. Pick the board
+with `scripts/build_board.sh <board> <idf.py args…>`, which uses a per-board
+build directory and layers the matching `sdkconfig.defaults.<board>` overlay:
+
+| Board | Slug | Flash | Notes |
+|---|---|---|---|
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3 | `waveshare` | 32 MB | default (also what plain `idf.py` builds) |
+| Guition JC4880P443C_I_W | `jc4880` | 16 MB | ST7701S, smaller partition table (`partitions_16mb.csv`) |
+
+```bash
+scripts/build_board.sh                              # build firmware for ALL boards
+scripts/build_board.sh waveshare flash monitor
+scripts/build_board.sh jc4880 -p /dev/cu.usbmodem* flash monitor
+```
+
+Run with no board (or `all`) to build every board's image in one go.
+
+What differs per board (everything else — WiFi/SDIO→C6, touch I2C, SD,
+most of the I2S bus — is shared): MIPI-DSI panel timing + vendor init, LCD
+backlight/reset pins, the BT-agent UART pins, the CAN RX/TX pins, flash size
+and the partition table. The board is chosen by the Kconfig `BOARD_MODEL`
+choice (`CONFIG_BOARD_WAVESHARE_43` / `CONFIG_BOARD_JC4880P443C`); see the
+`#if CONFIG_BOARD_JC4880P443C` branches in the BSP and `main/bt_link.h`.
+
+**JC4880P443C pin map** (free-header pins): BT-agent UART `TX=33 RX=31`,
+`RST=30 IO0=29`; CAN `RX=52 TX=51`; LCD backlight `23`, reset `5`.
+The 16 MB layout fits two 6 MB OTA slots + 1 MB storage + ~2.9 MB trip log —
+the app image (~5.3 MB) has ~0.7 MB of headroom in each slot, so watch the
+size as the firmware grows.
 
 ### 2. (Optional) BT agent firmware — D1 Mini ESP32
 
