@@ -19,6 +19,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "vesc_trip_persist.h"
+#include "dev_settings.h"   /* settings_get_battery_capacity */
 
 static const char *TAG = "batt_calc";
 
@@ -221,8 +222,16 @@ void battery_calc_capacity_changed(void)
 
 void battery_calc_reset_trip_and_ah(void)
 {
-    ESP_LOGI(TAG, "reset_trip_and_ah → trip_persist_reset()");
     trip_persist_reset();
+    /* Smart % is consumption-based (remaining_ah / capacity); zeroing the
+     * consumed capacity treats the pack as full again, so the percentage
+     * returns to 100 %. battery_calc_reset() always lands at full pack.
+     * (No visible effect in Direct mode, where % is the controller's
+     * voltage-based estimate, not this tracker.) */
+    float cap = (s_last_saved_capacity > 0.1f) ? s_last_saved_capacity
+                                               : settings_get_battery_capacity();
+    battery_calc_reset(s_last_controller_percent, cap);
+    ESP_LOGI(TAG, "reset_trip_and_ah → trip + battery to full (%.1f Ah)", cap);
 }
 
 float battery_calc_get_remaining_ah(void)

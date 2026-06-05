@@ -72,12 +72,17 @@ static lv_obj_t *s_empty_lbl;
 static lv_obj_t *s_summary;
 static lv_obj_t *s_metric_btns[5];   /* metric selector buttons */
 static lv_obj_t *s_chart, *s_chart_title;
+static lv_obj_t *s_ylbl[5];          /* custom Y-axis value labels */
+static lv_obj_t *s_xlbl[5];          /* custom X-axis time labels (M:SS) */
+static lv_obj_t *s_btn_xp, *s_btn_xm; /* X (time) zoom +/- */
 static lv_chart_series_t *s_ser_a, *s_ser_b;
 static lv_obj_t *s_spinner_modal;
 static lv_timer_t *s_live_timer;
 static bool      s_alive;
 static bool      s_busy;             /* a scan is in flight */
 static int       s_metric;           /* 0..4 */
+static float     s_xzoom = 1.0f;          /* X (time) magnification, 1 = whole trip */
+static float     s_xoff;                  /* X window start, fraction 0..1 */
 
 /* data buffers (filled by the worker / synthetic generator) */
 static trip_summary_t s_trips[MAX_TRIPS_UI];
@@ -215,30 +220,30 @@ static void show_list_view(void)
     lv_obj_clear_flag(s_list_view, LV_OBJ_FLAG_HIDDEN);
 }
 
-static void refresh_chart(int metric)
+/* Map sample i to the display value(s) of the current metric (temp → two). */
+static void sample_metric(int i, int32_t *va, int32_t *vb)
 {
-    if (!s_chart) return;
-    int n = s_series_count > 0 ? s_series_count : 1;
-    lv_chart_set_point_count(s_chart, n);
+    *vb = 0;
+    switch (s_metric) {
+    case 0: *va = s_series[i].speed_dkmh / 10; break;
+    case 1: *va = s_series[i].power_w;         break;
+    case 2: *va = s_series[i].voltage_dv / 10; break;
+    case 3: *va = s_series[i].temp_motor_dc / 10; *vb = s_series[i].temp_fet_dc / 10; break;
+    default: *va = s_series[i].batt_pct;       break;
+    }
+}
 
-    bool two = (metric == 3);   /* temperatures: motor + FET */
-    lv_chart_hide_series(s_chart, s_ser_b, !two);
-
+/* Y axis auto-fits the WHOLE trip and stays fixed while zooming X. Sets the
+ * chart range and the gutter value labels (top = hi, bottom = lo). */
+static void set_y_axis(void)
+{
     int32_t mn = INT32_MAX, mx = INT32_MIN;
     for (int i = 0; i < s_series_count; i++) {
-        int32_t va = 0, vb = 0;
-        switch (metric) {
-        case 0: va = s_series[i].speed_dkmh / 10; break;
-        case 1: va = s_series[i].power_w;         break;
-        case 2: va = s_series[i].voltage_dv / 10; break;
-        case 3: va = s_series[i].temp_motor_dc / 10; vb = s_series[i].temp_fet_dc / 10; break;
-        default: va = s_series[i].batt_pct;       break;
-        }
-        lv_chart_set_value_by_id(s_chart, s_ser_a, i, va);
-        if (two) lv_chart_set_value_by_id(s_chart, s_ser_b, i, vb);
+        int32_t va, vb;
+        sample_metric(i, &va, &vb);
         if (va < mn) mn = va;
         if (va > mx) mx = va;
-        if (two) {
+        if (s_metric == 3) {
             if (vb < mn) mn = vb;
             if (vb > mx) mx = vb;
         }
@@ -246,8 +251,63 @@ static void refresh_chart(int metric)
     if (s_series_count == 0) { mn = 0; mx = 1; }
     if (mn == mx) { mn -= 1; mx += 1; }
     int32_t pad = (mx - mn) / 10; if (pad < 1) pad = 1;
-    lv_chart_set_range(s_chart, LV_CHART_AXIS_PRIMARY_Y, mn - pad, mx + pad);
+    int32_t lo = mn - pad, hi = mx + pad;
+    lv_chart_set_range(s_chart, LV_CHART_AXIS_PRIMARY_Y, lo, hi);
+    for (int i = 0; i < 5; i++) {
+        int32_t v = hi - (int32_t)(((int64_t)(hi - lo) * i) / 4);
+        lv_label_set_text_fmt(s_ylbl[i], "%d", (int)v);
+    }
+}
+
+/* Plot the current X (time) window — a sub-range of the samples chosen by the
+ * X zoom (s_xzoom) and pan offset (s_xoff). Zoom 1 shows the whole trip. */
+static void plot_chart(void)
+{
+    if (!s_chart) return;
+    bool two = (s_metric == 3);
+    lv_chart_hide_series(s_chart, s_ser_b, !two);
+
+    int total = s_series_count;
+    if (total < 1) { lv_chart_set_point_count(s_chart, 1); lv_chart_refresh(s_chart); return; }
+
+    if (s_xzoom < 1.0f) s_xzoom = 1.0f;
+    int win = (int)((float)total / s_xzoom + 0.5f);
+    if (win < 2) win = 2;
+    if (win > total) win = total;
+    int maxstart = total - win;
+    if (s_xoff < 0.0f) s_xoff = 0.0f;
+    if (s_xoff > 1.0f) s_xoff = 1.0f;
+    int start = (int)(s_xoff * maxstart + 0.5f);
+    if (start < 0) start = 0;
+    if (start > maxstart) start = maxstart;
+
+    lv_chart_set_point_count(s_chart, win);
+    for (int j = 0; j < win; j++) {
+        int32_t va, vb;
+        sample_metric(start + j, &va, &vb);
+        lv_chart_set_value_by_id(s_chart, s_ser_a, j, va);
+        if (two) lv_chart_set_value_by_id(s_chart, s_ser_b, j, vb);
+    }
+
+    /* X-axis time labels for the visible window (trip time at each gridline). */
+    uint32_t t0 = s_series[start].t_s;
+    uint32_t t1 = s_series[start + win - 1].t_s;
+    for (int i = 0; i < 5; i++) {
+        uint32_t tv = t0 + (uint32_t)(((uint64_t)(t1 - t0) * i) / 4);
+        char b[16];
+        fmt_dur(tv, b, sizeof b);
+        lv_label_set_text(s_xlbl[i], b);
+    }
+
     lv_chart_refresh(s_chart);
+}
+
+static void refresh_chart(int metric)
+{
+    if (!s_chart) return;
+    s_metric = metric;
+    s_xzoom = 1.0f;     /* reset the X view for the new metric */
+    s_xoff = 0.0f;
 
     const char *t;
     switch (metric) {
@@ -258,7 +318,9 @@ static void refresh_chart(int metric)
     default: t = "Battery (%)";            break;
     }
     lv_label_set_text(s_chart_title, t);
-    s_metric = metric;
+
+    set_y_axis();
+    plot_chart();
 }
 
 /* ===================== async hand-off ===================== */
@@ -311,6 +373,41 @@ static void metric_btn_cb(lv_event_t *e)
     set_metric((int)(intptr_t)lv_event_get_user_data(e));
 }
 
+static void xzoom_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    if ((intptr_t)lv_event_get_user_data(e) > 0) s_xzoom *= 1.5f;
+    else                                         s_xzoom /= 1.5f;
+    if (s_xzoom < 1.0f) s_xzoom = 1.0f;
+    float maxz = (s_series_count >= 4) ? (float)s_series_count / 2.0f : 1.0f;
+    if (s_xzoom > maxz) s_xzoom = maxz;
+    plot_chart();
+}
+
+/* Drag left/right on the chart to pan the time window (only when zoomed in). */
+static void chart_press_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_PRESSING) return;
+    if (s_xzoom <= 1.0f) return;
+    lv_indev_t *indev = lv_indev_get_act();
+    if (!indev) return;
+    lv_point_t v;
+    lv_indev_get_vect(indev, &v);
+    if (v.x == 0) return;
+    int total = s_series_count;
+    int win = (int)((float)total / s_xzoom + 0.5f);
+    if (win < 2) win = 2;
+    if (win > total) win = total;
+    int maxstart = total - win;
+    if (maxstart < 1) return;
+    /* the ~712 px plot shows `win` samples; drag right → earlier time. */
+    float dstart = (float)(-v.x) * (float)win / 712.0f;
+    s_xoff += dstart / (float)maxstart;
+    if (s_xoff < 0.0f) s_xoff = 0.0f;
+    if (s_xoff > 1.0f) s_xoff = 1.0f;
+    plot_chart();
+}
+
 static void back_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
@@ -330,8 +427,8 @@ static void screen_unloaded_cb(lv_event_t *e)
     if (s_screen) { lv_obj_del_async(s_screen); s_screen = NULL; }
     s_spinner_modal = NULL;
     s_table = s_totals = s_empty_lbl = NULL;
-    s_summary = s_chart = s_chart_title = NULL;
-    for (int i = 0; i < 5; i++) s_metric_btns[i] = NULL;
+    s_summary = s_chart = s_chart_title = s_btn_xp = s_btn_xm = NULL;
+    for (int i = 0; i < 5; i++) { s_metric_btns[i] = NULL; s_ylbl[i] = NULL; s_xlbl[i] = NULL; }
     s_list_view = s_detail_view = s_title = s_back_btn = NULL;
     s_busy = false;
 }
@@ -453,23 +550,76 @@ static void build_screen(void)
     lv_label_set_text(s_chart_title, "");
 
     s_chart = lv_chart_create(s_detail_view);
-    lv_obj_set_pos(s_chart, 16, 172);
-    lv_obj_set_size(s_chart, 760, 236);
+    lv_obj_set_pos(s_chart, 48, 176);    /* shifted right → room for Y labels on the left */
+    lv_obj_set_size(s_chart, 736, 224);
     lv_chart_set_type(s_chart, LV_CHART_TYPE_LINE);
-    lv_chart_set_div_line_count(s_chart, 5, 8);
-    lv_chart_set_axis_tick(s_chart, LV_CHART_AXIS_PRIMARY_Y, 4, 2, 5, 1, true, 50);
-    /* Y-axis labels are drawn in the chart's left padding; the theme default
-     * (~12px) is too narrow for 3-4 digit values, so they spill past the left
-     * edge and get clipped. Reserve room so the whole axis fits in the window. */
-    lv_obj_set_style_pad_left(s_chart, 44, 0);
-    lv_obj_set_style_pad_bottom(s_chart, 8, 0);
+    lv_chart_set_div_line_count(s_chart, 3, 6);
+    /* The built-in chart axis labels overflow the panel in this LVGL build, so
+     * draw our own Y value labels in a reserved left gutter (pad_left) — fully
+     * contained, updated in refresh_chart. */
+    lv_obj_set_style_pad_top(s_chart, 10, 0);
+    lv_obj_set_style_pad_bottom(s_chart, 10, 0);
+    lv_obj_set_style_pad_right(s_chart, 10, 0);
+    lv_obj_set_style_pad_left(s_chart, 8, 0);
+    lv_obj_set_style_radius(s_chart, 6, 0);
     lv_obj_set_style_bg_color(s_chart, lv_color_hex(COL_PANEL), 0);
     lv_obj_set_style_border_width(s_chart, 0, 0);
-    lv_obj_set_style_text_color(s_chart, lv_color_hex(COL_DIM), 0);
+    lv_obj_set_style_line_color(s_chart, lv_color_hex(COL_BTN), LV_PART_MAIN);
     lv_obj_set_style_width(s_chart, 0, LV_PART_INDICATOR);    /* no point markers */
     lv_obj_set_style_height(s_chart, 0, LV_PART_INDICATOR);
     s_ser_a = lv_chart_add_series(s_chart, lv_color_hex(COL_ACCENT), LV_CHART_AXIS_PRIMARY_Y);
     s_ser_b = lv_chart_add_series(s_chart, lv_color_hex(COL_ORANGE), LV_CHART_AXIS_PRIMARY_Y);
+
+    /* Y-axis value labels to the LEFT of the chart panel (children of the detail
+     * view, not the chart). The plot spans detail-view y 186..390 (chart y 176 +
+     * pad_top 10, height 204); centre each label on its gridline. */
+    for (int i = 0; i < 5; i++) {
+        lv_obj_t *yl = lv_label_create(s_detail_view);
+        lv_obj_set_width(yl, 42);
+        lv_obj_set_pos(yl, 2, 186 + (204 * i) / 4 - 8);
+        lv_obj_set_style_text_align(yl, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_style_text_color(yl, lv_color_hex(COL_DIM), 0);
+        lv_obj_set_style_text_font(yl, &lv_font_montserratMedium_16, 0);
+        lv_label_set_text(yl, "");
+        s_ylbl[i] = yl;
+    }
+
+    /* X-axis time labels below the chart (trip time, M:SS), centred under the
+     * plot gridlines. Updated in plot_chart for the visible time window. */
+    for (int i = 0; i < 5; i++) {
+        lv_obj_t *xl = lv_label_create(s_detail_view);
+        lv_obj_set_width(xl, 52);
+        lv_obj_set_pos(xl, 56 + (718 * i) / 4 - 26, 403);
+        lv_obj_set_style_text_align(xl, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(xl, lv_color_hex(COL_DIM), 0);
+        lv_obj_set_style_text_font(xl, &lv_font_montserratMedium_16, 0);
+        lv_label_set_text(xl, "");
+        s_xlbl[i] = xl;
+    }
+
+    /* Drag the chart to pan the Y window when zoomed (not its own scroll). */
+    lv_obj_add_flag(s_chart, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(s_chart, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(s_chart, chart_press_cb, LV_EVENT_PRESSING, NULL);
+
+    /* X (time) zoom buttons (top-right, on the chart-title row). */
+    s_btn_xm = lv_btn_create(s_detail_view);
+    lv_obj_set_pos(s_btn_xm, 686, 140);
+    lv_obj_set_size(s_btn_xm, 48, 30);
+    lv_obj_set_style_radius(s_btn_xm, 6, 0);
+    lv_obj_set_style_border_width(s_btn_xm, 0, 0);
+    lv_obj_set_style_bg_color(s_btn_xm, lv_color_hex(COL_BTN), 0);
+    { lv_obj_t *l = lv_label_create(s_btn_xm); lv_label_set_text(l, "X-"); lv_obj_center(l); }
+    lv_obj_add_event_cb(s_btn_xm, xzoom_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
+
+    s_btn_xp = lv_btn_create(s_detail_view);
+    lv_obj_set_pos(s_btn_xp, 738, 140);
+    lv_obj_set_size(s_btn_xp, 48, 30);
+    lv_obj_set_style_radius(s_btn_xp, 6, 0);
+    lv_obj_set_style_border_width(s_btn_xp, 0, 0);
+    lv_obj_set_style_bg_color(s_btn_xp, lv_color_hex(COL_BTN), 0);
+    { lv_obj_t *l = lv_label_create(s_btn_xp); lv_label_set_text(l, "X+"); lv_obj_center(l); }
+    lv_obj_add_event_cb(s_btn_xp, xzoom_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
 
     lv_obj_add_event_cb(s_screen, screen_unloaded_cb, LV_EVENT_SCREEN_UNLOADED, NULL);
 }

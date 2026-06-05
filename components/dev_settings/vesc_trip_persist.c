@@ -77,6 +77,18 @@ void trip_persist_update(float vesc_trip_meters,
             if (saved_up < vesc_uptime_ms) s_uptime_offset_ms = 0;
             ESP_LOGI(TAG, "offsets: trip=%.2f m, Ah=%.2f, uptime=%u ms",
                      s_trip_offset_meters, s_ah_offset, (unsigned)s_uptime_offset_ms);
+        } else {
+            /* No saved baseline — fresh boot with an empty log, or the first
+             * tick right after trip_persist_reset(). The VESC counters are
+             * monotonic, so baseline the offset to their current value: the
+             * displayed totals start at 0 and count up from here. Without this
+             * the totals snap to the VESC's lifetime counters (the "reset
+             * doesn't stick" bug). */
+            s_trip_offset_meters = -vesc_trip_meters;
+            s_ah_offset          = -vesc_amp_hours;
+            s_uptime_offset_ms   = (uint32_t)(0u - vesc_uptime_ms);   /* unsigned wrap → display 0 */
+            ESP_LOGI(TAG, "baselined to zero: tach=%.0f m, Ah=%.2f, uptime=%u ms",
+                     vesc_trip_meters, vesc_amp_hours, (unsigned)vesc_uptime_ms);
         }
         s_first_update = false;
     }
