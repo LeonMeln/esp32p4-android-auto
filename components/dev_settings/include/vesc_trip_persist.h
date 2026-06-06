@@ -42,8 +42,6 @@ void  trip_persist_reset(void);
  * a new trip folder. */
 void  trip_persist_set_reset_cb(void (*cb)(void));
 
-bool  trip_persist_is_initialized(void);
-
 #ifdef __cplusplus
 }
 #endif

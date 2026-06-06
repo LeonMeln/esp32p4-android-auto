@@ -43,6 +43,7 @@ static int s_units_epoch = 0;
 #ifdef LV_REALDEVICE
 #include "vesc_limits.h"
 #include "vesc_battery_calc.h"
+#include "vesc_head2.h"
 #include "app_fs.h"
 #endif
 
@@ -78,6 +79,7 @@ typedef struct num_field {
 } num_field_t;
 
 static num_field_t s_target_id_field;
+static num_field_t s_second_head_id_field;
 static num_field_t s_battery_capacity_field;
 static num_field_t s_power_max_field;
 static num_field_t s_clock_hour_field;
@@ -161,6 +163,11 @@ static lv_obj_t *settings_heading_create(lv_obj_t *parent, int y, const char *te
 static lv_obj_t *settings_target_id_label = NULL;
 static lv_obj_t *settings_target_id_plus_btn = NULL;
 static lv_obj_t *settings_target_id_minus_btn = NULL;
+static lv_obj_t *settings_second_head_label = NULL;
+static lv_obj_t *settings_second_head_switch = NULL;
+static lv_obj_t *settings_second_head_id_label = NULL;
+static lv_obj_t *settings_second_head_id_plus_btn = NULL;
+static lv_obj_t *settings_second_head_id_minus_btn = NULL;
 static lv_obj_t *settings_can_speed_dropdown = NULL;
 static lv_obj_t *settings_can_speed_label = NULL;
 static lv_obj_t *settings_brightness_slider = NULL;
@@ -779,36 +786,88 @@ void update_range(float range_distance)
     lv_label_set_text(guider_ui.dashboard_Range_text,text);
 }
 
+/* Dual-head temperatures. When a second VESC head is configured AND its passive
+ * CAN STATUS is fresh, each temperature reads "h1/h2" (e.g. "34/37"). The string
+ * widens, so dual mode grows the value labels leftward (right edge fixed) and
+ * nudges the °C units right to make room; single-head layout is the GUI-Guider
+ * default. vesc_head2_get_temps() is device-only — the simulator stays single. */
+static bool dashboard_head2_temps(float *fet, float *motor)
+{
+#ifdef LV_REALDEVICE
+    return vesc_head2_get_temps(fet, motor);
+#else
+    (void)fet; (void)motor;
+    return false;
+#endif
+}
+
+static void dashboard_temps_apply_layout(bool dual)
+{
+    /* Derive "already applied?" from the live widget width rather than a static
+     * flag — the dashboard screen can be torn down and rebuilt (widgets reset to
+     * the GUI-Guider single-head coords), and a static would desync from that. */
+    int target_w = dual ? 160 : 100;
+    if (lv_obj_get_width(guider_ui.dashboard_temp_mot_text) == target_w) return;
+
+    if (dual) {
+        lv_obj_set_pos (guider_ui.dashboard_temp_mot_text, 419, 432);
+        lv_obj_set_size(guider_ui.dashboard_temp_mot_text, 160, 60);
+        lv_obj_set_pos (guider_ui.dashboard_col_mtmp_unit, 588, 442);
+        lv_obj_set_pos (guider_ui.dashboard_temp_esc_text, 577, 432);
+        lv_obj_set_size(guider_ui.dashboard_temp_esc_text, 160, 60);
+        lv_obj_set_pos (guider_ui.dashboard_col_ctmp_unit, 748, 442);
+    } else {
+        lv_obj_set_pos (guider_ui.dashboard_temp_mot_text, 479, 432);
+        lv_obj_set_size(guider_ui.dashboard_temp_mot_text, 100, 60);
+        lv_obj_set_pos (guider_ui.dashboard_col_mtmp_unit, 582, 442);
+        lv_obj_set_pos (guider_ui.dashboard_temp_esc_text, 637, 432);
+        lv_obj_set_size(guider_ui.dashboard_temp_esc_text, 100, 60);
+        lv_obj_set_pos (guider_ui.dashboard_col_ctmp_unit, 742, 442);
+    }
+}
+
 void update_temp_fet(float temp_fet)
 {
-    static float old_value = -999.0f;
-    static int   old_epoch = -1;
-    if (temp_fet == old_value && old_epoch == s_units_epoch) {
+    static int old_v1 = -9999, old_v2 = -9999, old_dual = -1, old_epoch = -1;
+
+    float fet2 = 0.0f, mot2 = 0.0f;
+    bool  dual = dashboard_head2_temps(&fet2, &mot2);
+    dashboard_temps_apply_layout(dual);
+
+    int v1 = (int)settings_wrapper_temp_to_display(temp_fet);
+    int v2 = dual ? (int)settings_wrapper_temp_to_display(fet2) : 0;
+    if (v1 == old_v1 && v2 == old_v2 &&
+        old_dual == (dual ? 1 : 0) && old_epoch == s_units_epoch) {
         return;
     }
-    old_value = temp_fet;
-    old_epoch = s_units_epoch;
+    old_v1 = v1; old_v2 = v2; old_dual = dual ? 1 : 0; old_epoch = s_units_epoch;
 
-    int value = (int)settings_wrapper_temp_to_display(temp_fet);
-    char text[10];
-    sprintf(text,"%d", value);
-    lv_label_set_text(guider_ui.dashboard_temp_esc_text,text);
+    char text[16];
+    if (dual) sprintf(text, "%d/%d", v1, v2);
+    else      sprintf(text, "%d", v1);
+    lv_label_set_text(guider_ui.dashboard_temp_esc_text, text);
 }
 
 void update_temp_motor(float temp_motor)
 {
-    static float old_value = -999.0f;
-    static int   old_epoch = -1;
-    if (temp_motor == old_value && old_epoch == s_units_epoch) {
+    static int old_v1 = -9999, old_v2 = -9999, old_dual = -1, old_epoch = -1;
+
+    float fet2 = 0.0f, mot2 = 0.0f;
+    bool  dual = dashboard_head2_temps(&fet2, &mot2);
+    dashboard_temps_apply_layout(dual);
+
+    int v1 = (int)settings_wrapper_temp_to_display(temp_motor);
+    int v2 = dual ? (int)settings_wrapper_temp_to_display(mot2) : 0;
+    if (v1 == old_v1 && v2 == old_v2 &&
+        old_dual == (dual ? 1 : 0) && old_epoch == s_units_epoch) {
         return;
     }
-    old_value = temp_motor;
-    old_epoch = s_units_epoch;
+    old_v1 = v1; old_v2 = v2; old_dual = dual ? 1 : 0; old_epoch = s_units_epoch;
 
-    int value = (int)settings_wrapper_temp_to_display(temp_motor);
-    char text[10];
-    sprintf(text,"%d", value);
-    lv_label_set_text(guider_ui.dashboard_temp_mot_text,text);
+    char text[16];
+    if (dual) sprintf(text, "%d/%d", v1, v2);
+    else      sprintf(text, "%d", v1);
+    lv_label_set_text(guider_ui.dashboard_temp_mot_text, text);
 }
 
 void update_amp_hours(float amp_hours)
@@ -1128,6 +1187,7 @@ static void debounced_commit_schedule(debounced_commit_t *d,
 }
 
 static debounced_commit_t s_target_id_commit;
+static debounced_commit_t s_second_head_id_commit;
 static debounced_commit_t s_brightness_commit;
 static debounced_commit_t s_controller_id_commit;
 static debounced_commit_t s_battery_capacity_commit;
@@ -1146,6 +1206,28 @@ static void target_id_plus_btn_event_cb(lv_event_t *e) {
 
 static void target_id_minus_btn_event_cb(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED) num_field_dec(&s_target_id_field);
+}
+
+// Second head enable toggle — single click, persist immediately (like AA).
+static void second_head_switch_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+    bool checked = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+    settings_wrapper_set_second_head_enabled(checked);
+}
+
+// Second head CAN ID — value-change callback (volatile + debounced NVS commit)
+static void second_head_id_on_change(num_field_t *f) {
+    settings_wrapper_set_second_head_id_volatile((uint8_t)f->value);
+    debounced_commit_schedule(&s_second_head_id_commit,
+                              settings_wrapper_persist_second_head_id);
+}
+
+static void second_head_id_plus_btn_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) == LV_EVENT_CLICKED) num_field_inc(&s_second_head_id_field);
+}
+
+static void second_head_id_minus_btn_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) == LV_EVENT_CLICKED) num_field_dec(&s_second_head_id_field);
 }
 
 // Event handler for CAN speed dropdown
@@ -1994,6 +2076,8 @@ static void reset_button_event_cb(lv_event_t *e) {
     if (code == LV_EVENT_CLICKED) {
         // Reset all settings to defaults
         settings_wrapper_set_target_vesc_id(10);
+        settings_wrapper_set_second_head_enabled(false);
+        settings_wrapper_set_second_head_id(11);
         settings_wrapper_set_can_speed_index(3); // 1000 kbps
         settings_wrapper_set_brightness(80);
         settings_wrapper_set_controller_id(2);
@@ -2006,6 +2090,10 @@ static void reset_button_event_cb(lv_event_t *e) {
         
         // Update UI elements
         if (s_target_id_field.label)        num_field_set(&s_target_id_field, 10);
+        if (s_second_head_id_field.label)   num_field_set(&s_second_head_id_field, 11);
+        if (settings_second_head_switch) {
+            lv_obj_clear_state(settings_second_head_switch, LV_STATE_CHECKED);
+        }
         if (settings_can_speed_dropdown) {
             lv_dropdown_set_selected(settings_can_speed_dropdown, 3);
         }
@@ -2091,6 +2179,37 @@ void settings_ui_init(lv_ui *ui) {
     settings_value_label_init(ui->settings, &s_target_id_field, y_pos + 5, 0x00a9ff);
     settings_target_id_plus_btn = settings_step_btn_create(ui->settings,
         SETTINGS_PLUS_X, y_pos + 5, "+", 0x00a9ff, target_id_plus_btn_event_cb);
+    y_pos += SETTINGS_ROW_H;
+
+    // ========== Second head (dual-motor board) ==========
+    // Enable when the controller is a dual (two VESC nodes on one CAN bus).
+    // The second head's temps/liveness are read passively from its CAN STATUS,
+    // so the user must enable "Send status over CAN" (1-5 @ 50 Hz) on it.
+    settings_second_head_label = settings_heading_create(ui->settings, y_pos, "Second head:");
+    settings_second_head_switch = lv_switch_create(ui->settings);
+    lv_obj_set_pos(settings_second_head_switch, 730, y_pos + 15);
+    lv_obj_set_size(settings_second_head_switch, 60, 30);
+    if (settings_wrapper_get_second_head_enabled()) {
+        lv_obj_add_state(settings_second_head_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_set_style_bg_color(settings_second_head_switch, lv_color_hex(0x2a3440), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(settings_second_head_switch, lv_color_hex(0x00a9ff),
+                              LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_add_event_cb(settings_second_head_switch, second_head_switch_event_cb,
+                        LV_EVENT_VALUE_CHANGED, NULL);
+    y_pos += SETTINGS_ROW_H;
+
+    // ========== Second head CAN ID ==========
+    settings_second_head_id_label = settings_heading_create(ui->settings, y_pos, "Second head ID:");
+    s_second_head_id_field = (num_field_t){
+        .value = settings_wrapper_get_second_head_id(), .min = 1, .max = 254,
+        .step = 1, .decimals = 0, .on_change = second_head_id_on_change,
+    };
+    settings_second_head_id_minus_btn = settings_step_btn_create(ui->settings,
+        SETTINGS_MINUS_X, y_pos + 5, "-", 0xff4444, second_head_id_minus_btn_event_cb);
+    settings_value_label_init(ui->settings, &s_second_head_id_field, y_pos + 5, 0x00a9ff);
+    settings_second_head_id_plus_btn = settings_step_btn_create(ui->settings,
+        SETTINGS_PLUS_X, y_pos + 5, "+", 0x00a9ff, second_head_id_plus_btn_event_cb);
     y_pos += SETTINGS_ROW_H;
     
     // ========== CAN Speed Dropdown ==========

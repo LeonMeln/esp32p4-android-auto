@@ -79,6 +79,13 @@ const _en = <String, String>{
   'about.source': 'Source code',
   'fw.title': 'Firmware update',
   'fw.device': 'Head unit version',
+  'fw.detected': 'Detected device',
+  'fw.detected.unknown': 'Unknown',
+  'fw.select': 'Firmware to flash',
+  'fw.warn.undetected':
+      'Couldn\'t read the head unit\'s board — pick the right firmware manually.',
+  'fw.warn.mismatch':
+      'Selected firmware is for a different board than detected — flash only if you\'re sure.',
   'fw.bundled': 'Bundled in app',
   'fw.unsupported': 'This head unit does not support over-the-air updates from the app.',
   'fw.disconnected': 'Connect to the head unit over Bluetooth first.',
@@ -172,6 +179,13 @@ const _ru = <String, String>{
   'about.source': 'Исходный код',
   'fw.title': 'Обновление прошивки',
   'fw.device': 'Версия на устройстве',
+  'fw.detected': 'Определённое устройство',
+  'fw.detected.unknown': 'Не определено',
+  'fw.select': 'Прошивка для заливки',
+  'fw.warn.undetected':
+      'Не удалось определить плату устройства — выбери нужную прошивку вручную.',
+  'fw.warn.mismatch':
+      'Выбранная прошивка для другой платы, чем определена — прошивай только если уверен.',
   'fw.bundled': 'В приложении',
   'fw.unsupported': 'Это устройство не поддерживает обновление прошивки из приложения.',
   'fw.disconnected': 'Сначала подключитесь к устройству по Bluetooth.',

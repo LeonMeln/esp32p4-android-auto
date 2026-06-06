@@ -51,6 +51,21 @@ static void         *s_user;
 
 static uint8_t s_txbuf[VCT_MAX_TX];
 
+/* Config target override for dual-head boards. 0 = use the global
+ * target_vesc_id (the primary head); non-zero = configure that controller_id
+ * instead. Set from the VESC config menu's "Head 1 / Head 2" selector. */
+static uint8_t s_target_override = 0;
+
+static inline uint8_t cfg_target(void)
+{
+    return s_target_override ? s_target_override : settings_get_target_vesc_id();
+}
+
+void vesc_config_set_target(uint8_t controller_id)
+{
+    s_target_override = controller_id;
+}
+
 static void timeout_cb(void *arg);
 
 void vct_init(void)
@@ -163,7 +178,7 @@ vc_result_t vct_get(const vc_table_t *t, bool defaults, vc_value_t *vals_out,
         return VC_ERR_BUSY;
     }
     uint8_t buf = cmd;
-    comm_can_send_buffer(settings_get_target_vesc_id(), &buf, 1, 0);
+    comm_can_send_buffer(cfg_target(), &buf, 1, 0);
     ESP_LOGI(TAG, "GET %s%s sent", t->kind ? "appconf" : "mcconf",
              defaults ? " (default)" : "");
     return VC_OK;
@@ -182,7 +197,7 @@ vc_result_t vct_set(const vc_table_t *t, const vc_value_t *vals,
     if (!begin(REQ_SET, cmd, t, NULL, cb, NULL, NULL, NULL, user, VCT_TIMEOUT_US)) {
         return VC_ERR_BUSY;
     }
-    comm_can_send_buffer(settings_get_target_vesc_id(), s_txbuf, (unsigned)(n + 1), 0);
+    comm_can_send_buffer(cfg_target(), s_txbuf, (unsigned)(n + 1), 0);
     ESP_LOGI(TAG, "SET %s sent (%u B)", t->kind ? "appconf" : "mcconf",
              (unsigned)(n + 1));
     return VC_OK;
@@ -194,8 +209,8 @@ vc_result_t vct_probe_fw(vct_fw_cb_t cb, void *user)
         return VC_ERR_BUSY;
     }
     uint8_t buf = COMM_FW_VERSION;
-    comm_can_send_buffer(settings_get_target_vesc_id(), &buf, 1, 0);
-    ESP_LOGI(TAG, "FW_VERSION probe sent to id %u", settings_get_target_vesc_id());
+    comm_can_send_buffer(cfg_target(), &buf, 1, 0);
+    ESP_LOGI(TAG, "FW_VERSION probe sent to id %u", cfg_target());
     return VC_OK;
 }
 
@@ -216,7 +231,7 @@ vc_result_t vct_detect_foc(bool detect_can, double max_power_loss, double min_cu
                cb, NULL, user, 120000u * 1000u)) {
         return VC_ERR_BUSY;
     }
-    comm_can_send_buffer(settings_get_target_vesc_id(), s_txbuf, (unsigned)ind, 0);
+    comm_can_send_buffer(cfg_target(), s_txbuf, (unsigned)ind, 0);
     ESP_LOGW(TAG, "DETECT_APPLY_ALL_FOC sent (max_loss=%.0f W) — motor will spin",
              max_power_loss);
     return VC_OK;
@@ -236,7 +251,7 @@ vc_result_t vct_request_raw(uint8_t cmd, const uint8_t *body, unsigned int body_
                (uint32_t)timeout_ms * 1000u)) {
         return VC_ERR_BUSY;
     }
-    comm_can_send_buffer(settings_get_target_vesc_id(), s_txbuf, 1u + body_len, 0);
+    comm_can_send_buffer(cfg_target(), s_txbuf, 1u + body_len, 0);
     ESP_LOGW(TAG, "raw detect cmd %u sent (%u B) — motor may spin", cmd, 1u + body_len);
     return VC_OK;
 }

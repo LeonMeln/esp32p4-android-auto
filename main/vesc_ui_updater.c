@@ -14,6 +14,7 @@
 #include "vesc_can/vesc_lisp_poll.h"
 #include "vesc_can/vesc_rt_data.h"
 #include "vesc_trip_persist.h"
+#include "vesc_head2.h"
 #include "trip_log.h"
 
 /* GUI Guider's custom.h is generated C++-friendly but pure C. The
@@ -90,7 +91,12 @@ static void push_zeros_locked(void)
 
 static void push_rt_locked(void)
 {
-    bool fresh = vesc_rt_data_is_fresh();
+    /* "ESC NOT CONNECTED" if EITHER head is silent: the primary poll (head1)
+     * must be fresh AND — when a second head is configured — its passive CAN
+     * STATUS must be fresh too. vesc_head2_is_fresh() is always false when the
+     * second head is disabled, so the term is gated on the setting. */
+    bool fresh = vesc_rt_data_is_fresh() &&
+                 (!settings_get_second_head_enabled() || vesc_head2_is_fresh());
     update_esc_connection_status(fresh);
     if (!fresh) return;
 

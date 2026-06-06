@@ -33,6 +33,8 @@ static struct {
     bool                 aa_autoconnect;
     bool                 use_imperial;
     bool                 use_fahrenheit;
+    bool                 second_head_enabled;
+    uint8_t              second_head_id;
 } s_cache;
 
 static settings_can_speed_cb_t     s_can_speed_cb;
@@ -82,6 +84,8 @@ static void load_from_nvs(void) {
     if (nvs_get_u8 (h, "aa_autocon",  &u8 ) == ESP_OK) s_cache.aa_autoconnect    = (u8 != 0);
     if (nvs_get_u8 (h, "use_imp",     &u8 ) == ESP_OK) s_cache.use_imperial      = (u8 != 0);
     if (nvs_get_u8 (h, "use_fahr",    &u8 ) == ESP_OK) s_cache.use_fahrenheit    = (u8 != 0);
+    if (nvs_get_u8 (h, "sh_en",       &u8 ) == ESP_OK) s_cache.second_head_enabled = (u8 != 0);
+    if (nvs_get_u8 (h, "sh_id",       &u8 ) == ESP_OK) s_cache.second_head_id    = u8;
     if (nvs_get_u16(h, "wheel_mm",    &u16) == ESP_OK) s_cache.wheel_diameter_mm = u16;
     if (nvs_get_u8 (h, "motor_poles", &u8 ) == ESP_OK) s_cache.motor_poles       = u8;
 
@@ -132,6 +136,8 @@ void settings_init(void) {
     s_cache.aa_autoconnect    = true;
     s_cache.use_imperial      = false;
     s_cache.use_fahrenheit    = false;
+    s_cache.second_head_enabled = false;
+    s_cache.second_head_id    = 11;
 
     load_from_nvs();
     s_cache.loaded = true;
@@ -156,6 +162,8 @@ bool                settings_get_vesc_emulator(void)     { return s_cache.vesc_e
 bool                settings_get_aa_autoconnect(void)    { return s_cache.aa_autoconnect; }
 bool                settings_get_use_imperial(void)      { return s_cache.use_imperial; }
 bool                settings_get_use_fahrenheit(void)    { return s_cache.use_fahrenheit; }
+bool                settings_get_second_head_enabled(void) { return s_cache.second_head_enabled; }
+uint8_t             settings_get_second_head_id(void)    { return s_cache.second_head_id; }
 
 /* ---------------- setters ---------------- */
 
@@ -250,6 +258,24 @@ void settings_set_use_fahrenheit(bool on) {
     nvs_handle_t h;
     if (open_rw(&h) != ESP_OK) return;
     nvs_set_u8(h, "use_fahr", on ? 1 : 0);
+    commit(h);
+}
+
+void settings_set_second_head_enabled(bool on) {
+    if (s_cache.second_head_enabled == on) return;
+    s_cache.second_head_enabled = on;
+    nvs_handle_t h;
+    if (open_rw(&h) != ESP_OK) return;
+    nvs_set_u8(h, "sh_en", on ? 1 : 0);
+    commit(h);
+}
+
+void settings_set_second_head_id(uint8_t id) {
+    if (s_cache.second_head_id == id) return;
+    s_cache.second_head_id = id;
+    nvs_handle_t h;
+    if (open_rw(&h) != ESP_OK) return;
+    nvs_set_u8(h, "sh_id", id);
     commit(h);
 }
 
@@ -377,6 +403,18 @@ void settings_persist_power_max_kw(void) {
     if (open_rw(&h) != ESP_OK) return;
     float v = s_cache.power_max_kw;
     nvs_set_blob(h, "pwr_max", &v, sizeof(v));
+    commit(h);
+}
+
+void settings_set_second_head_id_volatile(uint8_t id) {
+    if (s_cache.second_head_id == id) return;
+    s_cache.second_head_id = id;
+}
+
+void settings_persist_second_head_id(void) {
+    nvs_handle_t h;
+    if (open_rw(&h) != ESP_OK) return;
+    nvs_set_u8(h, "sh_id", s_cache.second_head_id);
     commit(h);
 }
 

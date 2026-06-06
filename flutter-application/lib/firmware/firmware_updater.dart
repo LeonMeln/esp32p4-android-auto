@@ -26,16 +26,33 @@ class UpdateState {
 class FirmwareUpdater {
   static const _versionAsset = 'assets/firmware/version.txt';
 
-  /// Board model used when the head unit doesn't report one (older firmware).
-  static const _defaultModel = 'waveshare';
+  /// Board model used when the head unit doesn't report one (older firmware)
+  /// and the user hasn't picked one manually.
+  static const defaultModel = 'waveshare';
+
+  /// Boards the APK ships an image for. Slugs match the firmware's
+  /// BOARD_MODEL_ID (main/board.h) and the staged asset names
+  /// (scripts/stage_firmware_asset.sh). Drives the manual firmware picker.
+  static const boards = <String>['waveshare', 'jc4880'];
+
+  /// Human-readable product name for a board slug (untranslated — these are
+  /// product names). Returns the raw slug for anything unrecognised.
+  static String displayName(String? model) {
+    switch (model) {
+      case 'waveshare':
+        return 'Waveshare 4.3"';
+      case 'jc4880':
+        return 'Guition JC4880P443C';
+      default:
+        return model ?? '?';
+    }
+  }
 
   /// Resolve the bundled firmware asset for a given board model. The APK ships
   /// one image per board; falls back to the default board when [model] is null
-  /// or unrecognised. Keep the slugs in sync with the firmware's BOARD_MODEL_ID
-  /// (main/board.h) and the staged asset names (scripts/stage_firmware_asset.sh).
+  /// or unrecognised.
   static String _assetFor(String? model) {
-    const known = {'waveshare', 'jc4880'};
-    final m = known.contains(model) ? model! : _defaultModel;
+    final m = boards.contains(model) ? model! : defaultModel;
     return 'assets/firmware/esp32p4_android_auto-$m.bin';
   }
 

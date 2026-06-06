@@ -30,7 +30,10 @@ static bool     s_first_update = true;
 static bool     s_have_saved_state;
 static void   (*s_reset_cb)(void);
 
-void trip_persist_init(void)
+/* Clear every running-total field to a clean slate. Shared by init and reset:
+ * both start counting from zero relative to the live VESC counters on the next
+ * update. */
+static void zero_state(void)
 {
     s_trip_offset_meters  = 0.0f;
     s_ah_offset           = 0.0f;
@@ -40,7 +43,12 @@ void trip_persist_init(void)
     s_current_vesc_uptime = 0;
     s_first_update        = true;
     s_have_saved_state    = false;
-    s_initialized         = true;
+}
+
+void trip_persist_init(void)
+{
+    zero_state();
+    s_initialized = true;
     ESP_LOGI(TAG, "init (totals resumed from the raw trip log)");
 }
 
@@ -130,14 +138,7 @@ uint32_t trip_persist_get_uptime_ms(void)
 
 void trip_persist_reset(void)
 {
-    s_trip_offset_meters  = 0.0f;
-    s_ah_offset           = 0.0f;
-    s_uptime_offset_ms    = 0;
-    s_current_vesc_trip   = 0.0f;
-    s_current_vesc_ah     = 0.0f;
-    s_current_vesc_uptime = 0;
-    s_first_update        = true;
-    s_have_saved_state    = false;
+    zero_state();
     ESP_LOGI(TAG, "reset complete");
 
     if (s_reset_cb) s_reset_cb();   /* roll the trip logger over to a new trip */
@@ -146,9 +147,4 @@ void trip_persist_reset(void)
 void trip_persist_set_reset_cb(void (*cb)(void))
 {
     s_reset_cb = cb;
-}
-
-bool trip_persist_is_initialized(void)
-{
-    return s_initialized;
 }

@@ -84,6 +84,12 @@ void         settings_wrapper_set_use_fahrenheit(bool on);
 float        settings_wrapper_temp_to_display(float celsius);
 const char  *settings_wrapper_temp_unit(void);
 
+/* Dual-head (two VESC controllers on one CAN bus). */
+bool    settings_wrapper_get_second_head_enabled(void);
+void    settings_wrapper_set_second_head_enabled(bool on);
+uint8_t settings_wrapper_get_second_head_id(void);
+void    settings_wrapper_set_second_head_id(uint8_t id);
+
 uint32_t settings_wrapper_get_clock_secs_of_day(void);
 void     settings_wrapper_set_clock_secs_of_day(uint32_t secs_of_day);
 
@@ -95,12 +101,14 @@ void settings_wrapper_set_brightness_volatile(uint8_t brightness);
 void settings_wrapper_set_controller_id_volatile(uint8_t id);
 void settings_wrapper_set_battery_capacity_volatile(float capacity);
 void settings_wrapper_set_power_max_kw_volatile(float power_max_kw);
+void settings_wrapper_set_second_head_id_volatile(uint8_t id);
 
 void settings_wrapper_persist_target_vesc_id(void);
 void settings_wrapper_persist_brightness(void);
 void settings_wrapper_persist_controller_id(void);
 void settings_wrapper_persist_battery_capacity(void);
 void settings_wrapper_persist_power_max_kw(void);
+void settings_wrapper_persist_second_head_id(void);
 
 /* Apply pending mode change by rebooting the device. On the device this
  * calls esp_restart() and does not return; in the simulator it just logs

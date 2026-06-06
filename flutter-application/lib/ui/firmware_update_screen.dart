@@ -20,7 +20,14 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
   final _hostCtrl = TextEditingController(text: FirmwareUpdater.defaultHost);
 
   String? _deviceVersion;
+
+  /// Board model the head unit reports over BLE (null when it can't be read).
   String? _deviceModel;
+
+  /// Board whose image will actually be flashed. Defaults to [_deviceModel]
+  /// when it's a known board, else [FirmwareUpdater.defaultModel]; the user
+  /// can override it with the picker.
+  String? _selectedModel;
   String? _bundled;
   bool _loading = true;
   bool _busy = false;
@@ -50,10 +57,14 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
         ? await BleService.instance.readOtaInfo()
         : null;
     if (!mounted) return;
+    final detected = info?.model;
     setState(() {
       _bundled = bundled;
       _deviceVersion = info?.version;
-      _deviceModel = info?.model;
+      _deviceModel = detected;
+      _selectedModel = FirmwareUpdater.boards.contains(detected)
+          ? detected
+          : FirmwareUpdater.defaultModel;
       _loading = false;
     });
   }
@@ -61,11 +72,13 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
   Future<void> _confirmAndFlash() async {
     final host = _hostCtrl.text.trim();
     if (host.isEmpty) return;
+    final boardLine = '${t(context, 'fw.select')}: '
+        '${FirmwareUpdater.displayName(_selectedModel)}';
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(t(ctx, 'fw.warn.title')),
-        content: Text(t(ctx, 'fw.warn.body')),
+        content: Text('${t(ctx, 'fw.warn.body')}\n\n$boardLine'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -80,8 +93,20 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
     );
     if (go != true) return;
     setState(() => _busy = true);
-    await _updater.run(host: host, model: _deviceModel);
+    await _updater.run(host: host, model: _selectedModel);
     if (mounted) setState(() => _busy = false);
+  }
+
+  /// Warning shown under the firmware picker, or null when the selection is
+  /// trustworthy. Two cases: the head unit's board couldn't be read at all, or
+  /// the user picked an image for a different board than the one detected.
+  String? _modelWarning(BuildContext context) {
+    if (_deviceModel == null) return t(context, 'fw.warn.undetected');
+    if (FirmwareUpdater.boards.contains(_deviceModel) &&
+        _selectedModel != _deviceModel) {
+      return t(context, 'fw.warn.mismatch');
+    }
+    return null;
   }
 
   @override
@@ -115,6 +140,18 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
               ),
               const Divider(height: 1),
               ListTile(
+                leading: const Icon(Icons.developer_board),
+                title: Text(t(context, 'fw.detected')),
+                trailing: Text(
+                    _deviceModel != null
+                        ? FirmwareUpdater.displayName(_deviceModel)
+                        : t(context, 'fw.detected.unknown'),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: _deviceModel == null ? Colors.orange : null,
+                        )),
+              ),
+              const Divider(height: 1),
+              ListTile(
                 leading: const Icon(Icons.phone_android),
                 title: Text(t(context, 'fw.bundled')),
                 trailing: Text(bundled,
@@ -125,6 +162,38 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          value: _selectedModel,
+          decoration: InputDecoration(
+            labelText: t(context, 'fw.select'),
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.system_update_alt),
+          ),
+          items: [
+            for (final b in FirmwareUpdater.boards)
+              DropdownMenuItem(
+                value: b,
+                child: Text(FirmwareUpdater.displayName(b)),
+              ),
+          ],
+          onChanged:
+              _busy ? null : (v) => setState(() => _selectedModel = v),
+        ),
+        if (_modelWarning(context) case final w?) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.warning_amber, size: 16, color: Colors.orange),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(w,
+                    style:
+                        const TextStyle(color: Colors.orange, fontSize: 13)),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 16),
         TextField(
           controller: _hostCtrl,

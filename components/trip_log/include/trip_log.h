@@ -3,7 +3,7 @@
  * — a circular log of fixed 64-byte records appended every ~10 s. Each record
  * carries a trip id that rolls over on "reset trip" / battery swap (hooked via
  * vesc_trip_persist's reset callback); the current trip continues across
- * reboots. At most 50 trips are exposed — the window is computed once on boot.
+ * reboots. The reader exposes at most the 50 most recent (non-deleted) trips.
  *
  * Intended to back a future on-device (or off-device) trip analyzer.
  */
@@ -28,12 +28,6 @@ void trip_log_tick(const vesc_setup_values_t *rt);
 /* Finalize the current trip and begin a new one. Wired to vesc_trip_persist's
  * reset callback (fires on the dashboard reset button and on battery-swap). */
 void trip_log_new_trip(void);
-
-/* Trip-id window exposed to a reader/analyzer. The oldest kept trip is computed
- * once on boot (last MAX_TRIPS trips); the current trip id grows as new trips
- * start. Both are 0 before trip_log_init() runs or if logging is disabled. */
-uint32_t trip_log_first_trip_id(void);
-uint32_t trip_log_current_trip_id(void);
 
 /* Soft-delete (hide) a trip from the statistics list. The record data stays on
  * the circular flash log, but the id is kept in an NVS hidden-set: the reader
@@ -63,7 +57,7 @@ typedef struct {
     uint16_t avg_speed_dkmh;   /* derived: distance / duration, km/h × 10      */
     uint16_t max_speed_dkmh;   /* km/h × 10                                    */
     uint16_t min_voltage_dv;   /* lowest pack voltage seen, V × 10 (sag)       */
-    bool     is_current;       /* trip_id == trip_log_current_trip_id()        */
+    bool     is_current;       /* this is the live (still-logging) trip        */
 } trip_summary_t;
 
 /* One downsampled point of a trip's time-series (for charts). */
@@ -74,6 +68,8 @@ typedef struct {
     uint16_t voltage_dv;       /* V × 10                                       */
     int16_t  temp_motor_dc;    /* °C × 10                                      */
     int16_t  temp_fet_dc;      /* °C × 10                                      */
+    int16_t  temp_motor2_dc;   /* 2nd head motor °C × 10 (0 = none, trips <v2) */
+    int16_t  temp_fet2_dc;     /* 2nd head FET   °C × 10 (0 = none, trips <v2) */
     uint8_t  batt_pct;         /* remaining capacity, %                        */
 } trip_sample_t;
 

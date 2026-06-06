@@ -18,6 +18,7 @@
  */
 #include "lvgl.h"
 #include "custom.h"
+#include "settings_wrapper.h"
 
 extern lv_ui guider_ui;
 
@@ -751,6 +752,19 @@ static void read_cb(lv_event_t *e)    { (void)e; s_retries = 0; vt_request_read(
 static void write_cb(lv_event_t *e)   { (void)e; s_retries = 0; vt_request_write(); }
 static void default_cb(lv_event_t *e) { (void)e; s_retries = 0; vt_request_read(s_kind, true); }
 
+/* Dual-head selector: retarget all config ops at the chosen head and re-read so
+ * the panel reflects it. sel 0 = primary head (clear override → settings target),
+ * sel 1 = the configured second head id. Both loaded flags are cleared so a Write
+ * can't push the previous head's values to the newly selected one. */
+static void head_cb(lv_event_t *e)
+{
+    int sel = (int)lv_dropdown_get_selected(lv_event_get_target(e));
+    vesc_config_set_target(sel == 1 ? settings_wrapper_get_second_head_id() : 0);
+    s_loaded[0] = s_loaded[1] = false;
+    s_retries = 0;
+    vt_request_read(s_kind, false);
+}
+
 /* ===================== FOC detection (manual + auto) ===================== */
 
 /* manual measurement results (raw SI units) */
@@ -1286,6 +1300,23 @@ static void vt_build_screen(void)
     lv_obj_set_style_text_font(s_emu_banner, &lv_font_montserratMedium_16, 0);
     lv_obj_set_style_text_align(s_emu_banner, LV_TEXT_ALIGN_RIGHT, 0);
 
+    /* Dual-head selector — only when a second head is configured. Sits in the
+     * title bar to the right of the version (vt_enter_ready appends "  X.YY"
+     * to s_title, which at font 24 runs to ~x=330 — so the selector starts at
+     * 352 to clear it). The emu banner shifts right of the selector to make
+     * room (the two never need the full width together). */
+    if (settings_wrapper_get_second_head_enabled()) {
+        lv_obj_t *dd_head = lv_dropdown_create(s_screen);
+        lv_dropdown_set_options(dd_head, "Head 1\nHead 2");
+        lv_dropdown_set_selected(dd_head, 0);
+        lv_obj_set_pos(dd_head, 352, 13);
+        lv_obj_set_size(dd_head, 110, 40);
+        style_dropdown(dd_head);
+        lv_obj_add_event_cb(dd_head, head_cb, LV_EVENT_VALUE_CHANGED, NULL);
+        lv_obj_set_pos(s_emu_banner, 468, 18);
+        lv_obj_set_width(s_emu_banner, 102);
+    }
+
     /* tool buttons: LISP editor + realtime viewer (top-right) */
     make_header_btn("LISP", 576, 100, lisp_open_cb);
     make_header_btn("Realtime", 680, 110, rt_open_cb);
@@ -1462,6 +1493,10 @@ void run_vesc_tool_menu(void)
     s_spinner_modal = NULL;
     s_ready_poll = NULL;
     s_retries = 0;
+
+    /* Always start on the primary head (clears any override left from a prior
+     * session where Head 2 was selected). */
+    vesc_config_set_target(0);
 
     vt_build_screen();
     s_alive = true;

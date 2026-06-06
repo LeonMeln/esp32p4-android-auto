@@ -49,6 +49,12 @@ void vesc_config_init(void);
  * vesc_config_ready()/vesc_config_get_fw() after the reply arrives. */
 void vesc_config_probe_fw(void);
 
+/* Select which controller all subsequent read/write/probe/detect ops address.
+ * 0 = the global primary head (settings target_vesc_id); non-zero = configure
+ * that controller_id instead. Used by the menu's "Head 1 / Head 2" selector on
+ * dual-motor boards. */
+void vesc_config_set_target(uint8_t controller_id);
+
 bool vesc_config_ready(void);                 /* a table has been selected */
 bool vesc_config_is_emulator(void);
 bool vesc_config_is_readonly(void);           /* fallback table → writes blocked */

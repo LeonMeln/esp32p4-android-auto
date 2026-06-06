@@ -21,6 +21,7 @@
 
 #include "vesc_trip_persist.h"
 #include "vesc_battery_calc.h"
+#include "vesc_head2.h"
 #include "vesc_can/crc.h"
 
 #include "esp_log.h"
@@ -38,7 +39,7 @@ static const char *TAG = "trip_log";
 
 #define TRIPLOG_LABEL      "triplog"
 #define REC_MAGIC          0x5452       /* "TR" */
-#define REC_VER            1
+#define REC_VER            2            /* v2 adds 2nd-head temps in the reserved area */
 #define REC_TYPE_SAMPLE    0
 #define REC_TYPE_TRIP_START 1
 #define REC_SIZE           64
@@ -74,7 +75,9 @@ typedef struct __attribute__((packed)) {
     int16_t  temp_fet_dc;  /* °C * 10 */
     uint8_t  batt_pct;
     uint8_t  fault;
-    uint8_t  reserved[16];
+    int16_t  temp_motor2_dc;/* 2nd head motor °C * 10 (ver>=2; 0 = no 2nd head) */
+    int16_t  temp_fet2_dc;  /* 2nd head FET   °C * 10 (ver>=2) */
+    uint8_t  reserved[12];
     uint32_t crc;          /* crc32c over the first REC_SIZE-4 bytes */
 } trip_rec_t;
 
@@ -85,7 +88,6 @@ static uint32_t s_total_recs;     /* ring capacity in records */
 static uint32_t s_head;           /* next slot index to write */
 static uint32_t s_seq;            /* next seq to assign */
 static uint32_t s_trip_id;        /* current trip */
-static uint32_t s_first_trip_id;  /* oldest exposed trip (boot-computed window) */
 static uint32_t s_trip_t_s;       /* seconds into current trip */
 static int64_t  s_last_sample_us;
 static volatile bool s_pending_new;
@@ -156,7 +158,7 @@ static void boot_scan(void)
 
     if (best_sec < 0) {
         /* empty / unformatted log */
-        s_head = 0; s_seq = 1; s_trip_id = 1; s_first_trip_id = 1; s_trip_t_s = 0;
+        s_head = 0; s_seq = 1; s_trip_id = 1; s_trip_t_s = 0;
         ESP_LOGI(TAG, "empty log: starting trip 1");
         return;
     }
@@ -177,15 +179,11 @@ static void boot_scan(void)
     s_trip_t_s = last.t_s;
     s_head    = (last_slot + 1) % s_total_recs;
 
-    /* 50-trip window — checked once here, at boot only (no runtime pruning). */
-    s_first_trip_id = (s_trip_id > MAX_TRIPS) ? (s_trip_id - MAX_TRIPS + 1) : 1;
-
     /* Resume the dashboard running totals from the last record. */
     trip_persist_seed_totals(last.distance_m, last.ah, last.uptime_ms);
 
-    ESP_LOGI(TAG, "resumed: trip=%u (window %u..%u) seq=%u head=%u dist=%um ah=%.2f",
-             (unsigned)s_trip_id, (unsigned)s_first_trip_id, (unsigned)s_trip_id,
-             (unsigned)s_seq, (unsigned)s_head,
+    ESP_LOGI(TAG, "resumed: trip=%u seq=%u head=%u dist=%um ah=%.2f",
+             (unsigned)s_trip_id, (unsigned)s_seq, (unsigned)s_head,
              (unsigned)last.distance_m, last.ah);
 }
 
@@ -321,6 +319,13 @@ void trip_log_tick(const vesc_setup_values_t *rt)
     rec.voltage_dv    = (uint16_t)(rt->v_in * 10.0f);
     rec.temp_motor_dc = (int16_t)(rt->temp_motor * 10.0f);
     rec.temp_fet_dc   = (int16_t)(rt->temp_mos * 10.0f);
+    /* Second head temps from its passive CAN STATUS — left at 0 (memset) when
+     * no second head is configured or its STATUS is stale. */
+    float fet2 = 0.0f, mot2 = 0.0f;
+    if (vesc_head2_get_temps(&fet2, &mot2)) {
+        rec.temp_motor2_dc = (int16_t)(mot2 * 10.0f);
+        rec.temp_fet2_dc   = (int16_t)(fet2 * 10.0f);
+    }
     /* Log the on-screen battery % (Smart vs Direct per setting), not the raw
      * controller level — so the statistics chart matches the dashboard. */
     rec.batt_pct      = (uint8_t)(battery_calc_display_percentage(
@@ -333,9 +338,6 @@ void trip_log_tick(const vesc_setup_values_t *rt)
         ESP_LOGW(TAG, "queue full — sample dropped");
     }
 }
-
-uint32_t trip_log_first_trip_id(void)   { return s_first_trip_id; }
-uint32_t trip_log_current_trip_id(void) { return s_trip_id; }
 
 bool trip_log_is_trip_deleted(uint32_t trip_id) { return is_deleted(trip_id); }
 
@@ -465,7 +467,7 @@ static void span_cb(const trip_rec_t *r, void *u)
     c->count++;
 }
 
-typedef struct { int64_t speed, power, volt, tmot, tfet, batt; uint32_t n; } bucket_t;
+typedef struct { int64_t speed, power, volt, tmot, tfet, tmot2, tfet2, batt; uint32_t n; } bucket_t;
 typedef struct { uint32_t trip_id, span; int nb; bucket_t *b; } bk_ctx_t;
 
 static void bucket_cb(const trip_rec_t *r, void *u)
@@ -481,6 +483,8 @@ static void bucket_cb(const trip_rec_t *r, void *u)
     b->volt  += r->voltage_dv;
     b->tmot  += r->temp_motor_dc;
     b->tfet  += r->temp_fet_dc;
+    b->tmot2 += r->temp_motor2_dc;
+    b->tfet2 += r->temp_fet2_dc;
     b->batt  += r->batt_pct;
     b->n++;
 }
@@ -509,6 +513,8 @@ int trip_log_read_series(uint32_t trip_id, trip_sample_t *out, int max)
         o->voltage_dv    = (uint16_t)(b[i].volt / cnt);
         o->temp_motor_dc = (int16_t)(b[i].tmot / cnt);
         o->temp_fet_dc   = (int16_t)(b[i].tfet / cnt);
+        o->temp_motor2_dc = (int16_t)(b[i].tmot2 / cnt);
+        o->temp_fet2_dc   = (int16_t)(b[i].tfet2 / cnt);
         o->batt_pct      = (uint8_t)(b[i].batt / cnt);
     }
     free(b);

@@ -57,6 +57,7 @@ typedef struct {
 typedef struct {
     uint32_t t_s;
     int16_t  speed_dkmh, power_w, temp_motor_dc, temp_fet_dc;
+    int16_t  temp_motor2_dc, temp_fet2_dc;
     uint16_t voltage_dv;
     uint8_t  batt_pct;
 } trip_sample_t;
@@ -71,7 +72,8 @@ static lv_obj_t *s_table;
 static lv_obj_t *s_totals;
 static lv_obj_t *s_empty_lbl;
 static lv_obj_t *s_summary;
-static lv_obj_t *s_metric_btns[5];   /* metric selector buttons */
+static lv_obj_t *s_metric_btns[6];   /* metric selector buttons (6th = 2nd-head temp) */
+static int       s_metric_count = 5; /* 6 when a second head is enabled */
 static lv_obj_t *s_chart, *s_chart_title;
 static lv_obj_t *s_ylbl[5];          /* custom Y-axis value labels */
 static lv_obj_t *s_xlbl[5];          /* custom X-axis time labels (M:SS) */
@@ -92,7 +94,6 @@ static trip_summary_t s_trips[MAX_TRIPS_UI];
 static int            s_trip_count;
 static trip_sample_t  s_series[MAX_SERIES];
 static int            s_series_count;
-static int            s_detail_idx;       /* row index into s_trips for the open detail */
 static uint32_t       s_detail_trip_id;
 
 static void request_trips(void);
@@ -102,6 +103,44 @@ static void refresh_chart(int metric);
 static void style_metric_btn(lv_obj_t *b, bool sel);
 
 /* ===================== helpers ===================== */
+
+/* Styled button (the trip-stats look: flat, rounded, coloured) with a centred
+ * label and a CLICKED handler. `font` may be NULL to leave the label at the
+ * theme default. Positioned with set_pos; callers that need lv_obj_align (the
+ * confirm dialog) pass 0,0 and align afterwards — align overrides the pos. */
+static lv_obj_t *make_btn(lv_obj_t *parent, int x, int y, int w, int h,
+                          int radius, uint32_t bg, const char *text,
+                          const lv_font_t *font, lv_event_cb_t cb, void *user)
+{
+    lv_obj_t *b = lv_btn_create(parent);
+    lv_obj_set_pos(b, x, y);
+    lv_obj_set_size(b, w, h);
+    lv_obj_set_style_radius(b, radius, 0);
+    lv_obj_set_style_border_width(b, 0, 0);
+    lv_obj_set_style_bg_color(b, lv_color_hex(bg), 0);
+
+    lv_obj_t *l = lv_label_create(b);
+    lv_label_set_text(l, text);
+    if (font) lv_obj_set_style_text_font(l, font, 0);
+    lv_obj_center(l);
+
+    lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, user);
+    return b;
+}
+
+/* Full-screen dimmed, click-blocking backdrop for a modal overlay. */
+static lv_obj_t *make_modal(lv_opa_t opa)
+{
+    lv_obj_t *m = lv_obj_create(s_screen);
+    lv_obj_set_size(m, 800, 480);
+    lv_obj_set_pos(m, 0, 0);
+    lv_obj_set_style_bg_color(m, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(m, opa, 0);
+    lv_obj_set_style_border_width(m, 0, 0);
+    lv_obj_clear_flag(m, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(m, LV_OBJ_FLAG_CLICKABLE);
+    return m;
+}
 
 static void fmt_dur(uint32_t secs, char *buf, size_t n)
 {
@@ -113,14 +152,7 @@ static void fmt_dur(uint32_t secs, char *buf, size_t n)
 static void show_spinner(const char *text)
 {
     if (s_spinner_modal) return;
-    s_spinner_modal = lv_obj_create(s_screen);
-    lv_obj_set_size(s_spinner_modal, 800, 480);
-    lv_obj_set_pos(s_spinner_modal, 0, 0);
-    lv_obj_set_style_bg_color(s_spinner_modal, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(s_spinner_modal, LV_OPA_60, 0);
-    lv_obj_set_style_border_width(s_spinner_modal, 0, 0);
-    lv_obj_clear_flag(s_spinner_modal, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(s_spinner_modal, LV_OBJ_FLAG_CLICKABLE);
+    s_spinner_modal = make_modal(LV_OPA_60);
 
     lv_obj_t *sp = lv_spinner_create(s_spinner_modal, 1000, 60);
     lv_obj_set_size(sp, 80, 80);
@@ -192,7 +224,6 @@ static void populate_list(void)
 static void open_detail(int idx)
 {
     if (idx < 0 || idx >= s_trip_count) return;
-    s_detail_idx = idx;
     trip_summary_t *t = &s_trips[idx];
 
     lv_label_set_text_fmt(s_title, "Trip #%u", (unsigned)t->trip_id);
@@ -223,7 +254,7 @@ static void open_detail(int idx)
     }
 
     s_metric = 0;
-    for (int i = 0; i < 5; i++) style_metric_btn(s_metric_btns[i], i == 0);
+    for (int i = 0; i < s_metric_count; i++) style_metric_btn(s_metric_btns[i], i == 0);
 
     request_series(t->trip_id);   /* fills s_series → on_series_ready → refresh_chart */
 }
@@ -245,6 +276,8 @@ static void sample_metric(int i, int32_t *va, int32_t *vb)
     case 2: *va = s_series[i].voltage_dv / 10; break;
     case 3: *va = (int32_t)settings_wrapper_temp_to_display(s_series[i].temp_motor_dc / 10.0f);
             *vb = (int32_t)settings_wrapper_temp_to_display(s_series[i].temp_fet_dc / 10.0f); break;
+    case 5: *va = (int32_t)settings_wrapper_temp_to_display(s_series[i].temp_motor2_dc / 10.0f);
+            *vb = (int32_t)settings_wrapper_temp_to_display(s_series[i].temp_fet2_dc / 10.0f); break;
     default: *va = s_series[i].batt_pct;       break;
     }
 }
@@ -259,7 +292,7 @@ static void set_y_axis(void)
         sample_metric(i, &va, &vb);
         if (va < mn) mn = va;
         if (va > mx) mx = va;
-        if (s_metric == 3) {
+        if (s_metric == 3 || s_metric == 5) {
             if (vb < mn) mn = vb;
             if (vb > mx) mx = vb;
         }
@@ -280,7 +313,7 @@ static void set_y_axis(void)
 static void plot_chart(void)
 {
     if (!s_chart) return;
-    bool two = (s_metric == 3);
+    bool two = (s_metric == 3 || s_metric == 5);
     lv_chart_hide_series(s_chart, s_ser_b, !two);
 
     int total = s_series_count;
@@ -332,6 +365,8 @@ static void refresh_chart(int metric)
     case 2: t = "Voltage (V)";             break;
     case 3: t = settings_wrapper_get_use_fahrenheit() ? "Temp (F)  motor / FET"
                                                       : "Temp (C)  motor / FET"; break;
+    case 5: t = settings_wrapper_get_use_fahrenheit() ? "Head 2 Temp (F)  motor / FET"
+                                                      : "Head 2 Temp (C)  motor / FET"; break;
     default: t = "Battery (%)";            break;
     }
     lv_label_set_text(s_chart_title, t);
@@ -380,7 +415,7 @@ static void style_metric_btn(lv_obj_t *b, bool sel)
 
 static void set_metric(int m)
 {
-    for (int i = 0; i < 5; i++) style_metric_btn(s_metric_btns[i], i == m);
+    for (int i = 0; i < s_metric_count; i++) style_metric_btn(s_metric_btns[i], i == m);
     refresh_chart(m);
 }
 
@@ -447,7 +482,8 @@ static void screen_unloaded_cb(lv_event_t *e)
     s_confirm_modal = NULL;
     s_table = s_totals = s_empty_lbl = NULL;
     s_summary = s_chart = s_chart_title = s_btn_xp = s_btn_xm = NULL;
-    for (int i = 0; i < 5; i++) { s_metric_btns[i] = NULL; s_ylbl[i] = NULL; s_xlbl[i] = NULL; }
+    for (int i = 0; i < 6; i++) s_metric_btns[i] = NULL;
+    for (int i = 0; i < 5; i++) { s_ylbl[i] = NULL; s_xlbl[i] = NULL; }
     s_list_view = s_detail_view = s_title = s_back_btn = NULL;
     s_busy = false;
 }
@@ -485,14 +521,7 @@ static void confirm_yes_cb(lv_event_t *e)
 static void show_confirm_delete(void)
 {
     if (s_confirm_modal) return;
-    s_confirm_modal = lv_obj_create(s_screen);
-    lv_obj_set_size(s_confirm_modal, 800, 480);
-    lv_obj_set_pos(s_confirm_modal, 0, 0);
-    lv_obj_set_style_bg_color(s_confirm_modal, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(s_confirm_modal, LV_OPA_70, 0);
-    lv_obj_set_style_border_width(s_confirm_modal, 0, 0);
-    lv_obj_clear_flag(s_confirm_modal, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(s_confirm_modal, LV_OBJ_FLAG_CLICKABLE);
+    s_confirm_modal = make_modal(LV_OPA_70);
 
     lv_obj_t *box = lv_obj_create(s_confirm_modal);
     lv_obj_set_size(box, 460, 200);
@@ -508,25 +537,13 @@ static void show_confirm_delete(void)
     lv_obj_set_style_text_font(l, &lv_font_montserrat_24, 0);
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 16);
 
-    lv_obj_t *yes = lv_btn_create(box);
-    lv_obj_set_size(yes, 180, 60);
+    lv_obj_t *yes = make_btn(box, 0, 0, 180, 60, 8, COL_RED, "Delete",
+                             &lv_font_montserrat_24, confirm_yes_cb, NULL);
     lv_obj_align(yes, LV_ALIGN_BOTTOM_LEFT, 6, -6);
-    lv_obj_set_style_bg_color(yes, lv_color_hex(COL_RED), 0);
-    lv_obj_set_style_radius(yes, 8, 0);
-    lv_obj_set_style_border_width(yes, 0, 0);
-    { lv_obj_t *bl = lv_label_create(yes); lv_label_set_text(bl, "Delete");
-      lv_obj_set_style_text_font(bl, &lv_font_montserrat_24, 0); lv_obj_center(bl); }
-    lv_obj_add_event_cb(yes, confirm_yes_cb, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t *no = lv_btn_create(box);
-    lv_obj_set_size(no, 180, 60);
+    lv_obj_t *no = make_btn(box, 0, 0, 180, 60, 8, COL_BTN, "Cancel",
+                            &lv_font_montserrat_24, confirm_no_cb, NULL);
     lv_obj_align(no, LV_ALIGN_BOTTOM_RIGHT, -6, -6);
-    lv_obj_set_style_bg_color(no, lv_color_hex(COL_BTN), 0);
-    lv_obj_set_style_radius(no, 8, 0);
-    lv_obj_set_style_border_width(no, 0, 0);
-    { lv_obj_t *bl = lv_label_create(no); lv_label_set_text(bl, "Cancel");
-      lv_obj_set_style_text_font(bl, &lv_font_montserrat_24, 0); lv_obj_center(bl); }
-    lv_obj_add_event_cb(no, confirm_no_cb, LV_EVENT_CLICKED, NULL);
 }
 
 static void delete_btn_cb(lv_event_t *e)
@@ -538,7 +555,7 @@ static void delete_btn_cb(lv_event_t *e)
 
 /* ===================== build ===================== */
 
-static const char *s_metric_names[5] = { "Speed", "Power", "Voltage", "Temp", "Batt" };
+static const char *s_metric_names[6] = { "Speed", "Power", "Voltage", "Temp", "Batt", "Temp2" };
 
 static void build_screen(void)
 {
@@ -555,17 +572,8 @@ static void build_screen(void)
     lv_obj_set_style_text_color(s_title, lv_color_hex(COL_ACCENT), 0);
     lv_obj_set_style_text_font(s_title, &lv_font_montserrat_24, 0);
 
-    s_back_btn = lv_btn_create(s_screen);
-    lv_obj_set_pos(s_back_btn, 696, 8);
-    lv_obj_set_size(s_back_btn, 92, 40);
-    lv_obj_set_style_bg_color(s_back_btn, lv_color_hex(COL_BTN), 0);
-    lv_obj_set_style_radius(s_back_btn, 6, 0);
-    lv_obj_set_style_border_width(s_back_btn, 0, 0);
-    lv_obj_t *bl = lv_label_create(s_back_btn);
-    lv_label_set_text(bl, "Back");
-    lv_obj_set_style_text_font(bl, &lv_font_montserrat_24, 0);
-    lv_obj_center(bl);
-    lv_obj_add_event_cb(s_back_btn, back_cb, LV_EVENT_CLICKED, NULL);
+    s_back_btn = make_btn(s_screen, 696, 8, 92, 40, 6, COL_BTN, "Back",
+                          &lv_font_montserrat_24, back_cb, NULL);
 
     /* ---- list view ---- */
     s_list_view = lv_obj_create(s_screen);
@@ -631,31 +639,22 @@ static void build_screen(void)
 
     /* Delete-trip button — top-right of the detail view, clear of the summary
      * text on the left. Hidden for the live trip (see open_detail). */
-    s_delete_btn = lv_btn_create(s_detail_view);
-    lv_obj_set_pos(s_delete_btn, 624, 4);
-    lv_obj_set_size(s_delete_btn, 160, 40);
-    lv_obj_set_style_bg_color(s_delete_btn, lv_color_hex(COL_RED), 0);
-    lv_obj_set_style_radius(s_delete_btn, 6, 0);
-    lv_obj_set_style_border_width(s_delete_btn, 0, 0);
-    { lv_obj_t *l = lv_label_create(s_delete_btn); lv_label_set_text(l, "Delete");
-      lv_obj_set_style_text_font(l, &lv_font_montserrat_24, 0); lv_obj_center(l); }
-    lv_obj_add_event_cb(s_delete_btn, delete_btn_cb, LV_EVENT_CLICKED, NULL);
+    s_delete_btn = make_btn(s_detail_view, 624, 4, 160, 40, 6, COL_RED, "Delete",
+                            &lv_font_montserrat_24, delete_btn_cb, NULL);
 
-    /* metric selector — five explicit buttons (a btnmatrix renders as thin
-     * strips under this theme), selected one filled lime with dark text. */
-    for (int i = 0; i < 5; i++) {
-        lv_obj_t *b = lv_btn_create(s_detail_view);
-        lv_obj_set_pos(b, 4 + i * 156, 92);
-        lv_obj_set_size(b, 148, 40);
-        lv_obj_set_style_radius(b, 6, 0);
-        lv_obj_set_style_border_width(b, 0, 0);
-        lv_obj_set_style_text_font(b, &lv_font_montserratMedium_16, 0);
-        lv_obj_t *l = lv_label_create(b);
-        lv_label_set_text(l, s_metric_names[i]);
-        lv_obj_center(l);
-        lv_obj_add_event_cb(b, metric_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    /* metric selector — explicit buttons (a btnmatrix renders as thin strips
+     * under this theme), selected one filled lime with dark text. A 6th button
+     * ("Temp2", 2nd-head temps) appears only on dual-head setups; the row then
+     * packs tighter so all buttons stay on screen. */
+    s_metric_count = settings_wrapper_get_second_head_enabled() ? 6 : 5;
+    int step = 792 / s_metric_count;   /* span 4..796 */
+    int bw   = step - 8;
+    for (int i = 0; i < s_metric_count; i++) {
+        lv_obj_t *b = make_btn(s_detail_view, 4 + i * step, 92, bw, 40, 6, COL_BTN,
+                               s_metric_names[i], &lv_font_montserratMedium_16,
+                               metric_btn_cb, (void *)(intptr_t)i);
         s_metric_btns[i] = b;
-        style_metric_btn(b, i == 0);
+        style_metric_btn(b, i == 0);   /* overrides bg/text colour for the selection */
     }
 
     s_chart_title = lv_label_create(s_detail_view);
@@ -718,23 +717,10 @@ static void build_screen(void)
     lv_obj_add_event_cb(s_chart, chart_press_cb, LV_EVENT_PRESSING, NULL);
 
     /* X (time) zoom buttons (top-right, on the chart-title row). */
-    s_btn_xm = lv_btn_create(s_detail_view);
-    lv_obj_set_pos(s_btn_xm, 686, 140);
-    lv_obj_set_size(s_btn_xm, 48, 30);
-    lv_obj_set_style_radius(s_btn_xm, 6, 0);
-    lv_obj_set_style_border_width(s_btn_xm, 0, 0);
-    lv_obj_set_style_bg_color(s_btn_xm, lv_color_hex(COL_BTN), 0);
-    { lv_obj_t *l = lv_label_create(s_btn_xm); lv_label_set_text(l, "X-"); lv_obj_center(l); }
-    lv_obj_add_event_cb(s_btn_xm, xzoom_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
-
-    s_btn_xp = lv_btn_create(s_detail_view);
-    lv_obj_set_pos(s_btn_xp, 738, 140);
-    lv_obj_set_size(s_btn_xp, 48, 30);
-    lv_obj_set_style_radius(s_btn_xp, 6, 0);
-    lv_obj_set_style_border_width(s_btn_xp, 0, 0);
-    lv_obj_set_style_bg_color(s_btn_xp, lv_color_hex(COL_BTN), 0);
-    { lv_obj_t *l = lv_label_create(s_btn_xp); lv_label_set_text(l, "X+"); lv_obj_center(l); }
-    lv_obj_add_event_cb(s_btn_xp, xzoom_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
+    s_btn_xm = make_btn(s_detail_view, 686, 140, 48, 30, 6, COL_BTN, "X-",
+                        NULL, xzoom_cb, (void *)(intptr_t)-1);
+    s_btn_xp = make_btn(s_detail_view, 738, 140, 48, 30, 6, COL_BTN, "X+",
+                        NULL, xzoom_cb, (void *)(intptr_t)1);
 
     lv_obj_add_event_cb(s_screen, screen_unloaded_cb, LV_EVENT_SCREEN_UNLOADED, NULL);
 }
@@ -875,7 +861,6 @@ void show_trips_statistics(void)
     s_metric = 0;
     s_trip_count = 0;
     s_series_count = 0;
-    s_detail_idx = 0;
     s_spinner_modal = NULL;
     s_live_timer = NULL;
 

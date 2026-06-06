@@ -161,6 +161,34 @@ TJA1051, **TXD is an input** (MCU drives it), **RXD is an output**
   in `idf.py menuconfig` under *VESC CAN* (`VESC_CAN_SPEED_KBPS`,
   `VESC_CAN_CONTROLLER_ID`).
 
+#### Dual-motor (two-head) boards
+
+Dual ESCs (Flipsky Dual, Spintend UBOX, MakerX dual, …) are **two VESC nodes on
+one CAN bus**, each with its own controller ID. To use both heads:
+
+1. In **Settings → Second head**, turn the toggle on and set **Second head ID**
+   to the second controller's CAN ID (the primary is the usual *Target VESC ID*).
+2. On **both** heads, in VESC Tool enable **App → General → Send status over CAN**
+   with status messages **1–5** at **50 Hz** (the default rate when enabled), and
+   give the two heads **distinct CAN IDs** (e.g. 0 and 1).
+
+The 50 Hz status rate is required, not optional: the master VESC only folds a
+peer into its combined totals while that peer's CAN status is **< 100 ms old**,
+and the dashboard reads the second head's temperatures from those same status
+frames. At a low status rate the combined Ah/Wh/power readout flickers.
+
+What you get on a dual board:
+
+- **Temperatures** show both heads as `h1/h2` (e.g. `34/37`); falls back to a
+  single value if the second head's status isn't seen.
+- **Battery / Ah / Wh / power** are the **combined** totals of both motors — the
+  master VESC sums them itself (we just read its *setup* values), so no extra
+  CAN polling is added.
+- **Speed, distance and voltage** are taken from the primary head.
+- **ESC NOT CONNECTED** shows if *either* head goes silent.
+- The **VESC config menu** gains a **Head 1 / Head 2** selector so you can read
+  and write each head's MCCONF/APPCONF independently.
+
 ### 3. D1 Mini ESP32 ↔ P4 (only for the AA bonus)
 
 The P4 board exposes a `J3` header on the bottom edge with the free expansion

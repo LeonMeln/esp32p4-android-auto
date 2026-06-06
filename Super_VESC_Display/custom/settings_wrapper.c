@@ -38,6 +38,8 @@ static struct {
     bool aa_autoconnect;
     bool use_imperial;
     bool use_fahrenheit;
+    bool second_head_enabled;
+    uint8_t second_head_id;
 } sim_settings = {
     .target_vesc_id = 10,
     .can_speed_index = 3,  // 1000 kbps
@@ -53,6 +55,8 @@ static struct {
     .aa_autoconnect = true,
     .use_imperial = false,
     .use_fahrenheit = false,
+    .second_head_enabled = false,
+    .second_head_id = 11,
 };
 #endif
 
@@ -333,6 +337,52 @@ float settings_wrapper_temp_to_display(float celsius) {
 
 const char *settings_wrapper_temp_unit(void) {
     return settings_wrapper_get_use_fahrenheit() ? "°F" : "°C";
+}
+
+bool settings_wrapper_get_second_head_enabled(void) {
+#if SIMULATOR_MODE
+    return sim_settings.second_head_enabled;
+#else
+    return settings_get_second_head_enabled();
+#endif
+}
+
+void settings_wrapper_set_second_head_enabled(bool on) {
+#if SIMULATOR_MODE
+    sim_settings.second_head_enabled = on;
+#else
+    settings_set_second_head_enabled(on);
+#endif
+}
+
+uint8_t settings_wrapper_get_second_head_id(void) {
+#if SIMULATOR_MODE
+    return sim_settings.second_head_id;
+#else
+    return settings_get_second_head_id();
+#endif
+}
+
+void settings_wrapper_set_second_head_id(uint8_t id) {
+#if SIMULATOR_MODE
+    sim_settings.second_head_id = id;
+#else
+    settings_set_second_head_id(id);
+#endif
+}
+
+void settings_wrapper_set_second_head_id_volatile(uint8_t id) {
+#if SIMULATOR_MODE
+    sim_settings.second_head_id = id;
+#else
+    settings_set_second_head_id_volatile(id);
+#endif
+}
+
+void settings_wrapper_persist_second_head_id(void) {
+#if !SIMULATOR_MODE
+    settings_persist_second_head_id();
+#endif
 }
 
 void settings_wrapper_set_power_max_kw_volatile(float power_max_kw) {
