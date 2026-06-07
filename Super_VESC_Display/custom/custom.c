@@ -19,6 +19,8 @@
 #include "lvgl.h"
 #include "custom.h"
 #include "settings_wrapper.h"
+#include "dashboard_theme.h"
+#include "theme_ref.h"
 
 #ifdef LV_REALDEVICE
 #include "log_capture.h"
@@ -170,6 +172,8 @@ static lv_obj_t *settings_second_head_id_plus_btn = NULL;
 static lv_obj_t *settings_second_head_id_minus_btn = NULL;
 static lv_obj_t *settings_can_speed_dropdown = NULL;
 static lv_obj_t *settings_can_speed_label = NULL;
+static lv_obj_t *settings_theme_dropdown = NULL;
+static lv_obj_t *settings_theme_label = NULL;
 static lv_obj_t *settings_brightness_slider = NULL;
 static lv_obj_t *settings_brightness_label = NULL;
 static lv_obj_t *settings_controller_id_slider = NULL;
@@ -414,19 +418,18 @@ static void fmt_overlay_timer_cb(lv_timer_t *t)
 }
 #endif /* LV_REALDEVICE */
 
-void custom_init(lv_ui *ui)
-{
-    /* Add your codes here */
+/* Defined further down (cockpit render op); cockpit_screen_init() calls it to
+ * set the static unit captions + bump the units epoch at (re)build time. */
+static void cockpit_units_changed(void);
 
+/* Per-screen chrome — applied every time the cockpit screen is (re)built (boot,
+ * and again when the user switches back to the cockpit theme). The one-time
+ * bits (settings_wrapper_init, the format-notice timer, theme registration)
+ * live in custom_init_once() at the bottom of this file. */
+static void cockpit_screen_init(lv_ui *ui)
+{
     /* Disable screen panning — dashboard is a static layout. */
     lv_obj_clear_flag(ui->dashboard, LV_OBJ_FLAG_SCROLLABLE);
-
-#ifdef LV_REALDEVICE
-    /* Watch for the one-time backup-FS format and show a notice while it runs. */
-    if (!s_fmt_overlay_tmr) {
-        s_fmt_overlay_tmr = lv_timer_create(fmt_overlay_timer_cb, 200, NULL);
-    }
-#endif
 
     // BLE status is shown via dashboard_status_bt text — the
     // ble_connected_img icon has been removed from the project.
@@ -466,14 +469,16 @@ void custom_init(lv_ui *ui)
      * "Demo mode" switch wired up in settings_ui_init(). */
 
     /* Paint the "X.X KW" scale label from the saved power-max setting so the
-     * bar fill ratio and the printed full-scale agree at boot. */
-    settings_wrapper_init();
+     * bar fill ratio and the printed full-scale agree at boot. settings_wrapper
+     * is already initialised in custom_init_once(). */
     cockpit_refresh_power_max_label();
 
     /* Flip the static speed/distance unit captions to match the saved
      * km/miles setting so they're correct from the first frame (the value
-     * setters convert on their own as data arrives). */
-    dashboard_units_changed();
+     * setters convert on their own as data arrives). Call the cockpit impl
+     * directly: at (re)build time the theme registry's active pointer may not
+     * be us yet, so the dashboard_units_changed() dispatcher could no-op. */
+    cockpit_units_changed();
 
     /* Sync the invisible dashboard brightness drag slider with the saved
      * value so a touch on the slider starts from the real brightness,
@@ -643,7 +648,7 @@ void reset_icon_pressed(void)
     #endif
 }
 
-void update_current(float current)
+static void cockpit_current(float current)
 {
     static float old_value = -999.0f;
     if (current == old_value) {
@@ -672,7 +677,7 @@ void update_current(float current)
     cockpit_update_power();
 }
 
-void update_speed(float speed)
+static void cockpit_speed(float speed)
 {
     static float old_value = -999.0f;
     static int   old_epoch = -1;
@@ -702,7 +707,7 @@ void update_speed(float speed)
     atomic_store(&s_cockpit_speed_value, v_clamped);
 }
 
-void update_cruise_speed(float speed)
+static void cockpit_cruise_speed(float speed)
 {
     if (cruise_active == 0) {
         return;
@@ -730,7 +735,7 @@ void update_cruise_speed(float speed)
 }
 
 
-void update_battery_proc(float battery_proc)
+static void cockpit_battery_proc(float battery_proc)
 {
     static float old_value = -999.0f;
     if (battery_proc == old_value) {
@@ -756,7 +761,7 @@ void update_battery_proc(float battery_proc)
     atomic_store(&s_cockpit_battery_proc_value, v_clamped);
 }
 
-void update_trip(float trip_distance)
+static void cockpit_trip(float trip_distance)
 {
     static float old_value = -999.0f;
     static int   old_epoch = -1;
@@ -771,7 +776,7 @@ void update_trip(float trip_distance)
     lv_label_set_text(guider_ui.dashboard_TRIP_text,text);
 }
 
-void update_range(float range_distance)
+static void cockpit_range(float range_distance)
 {
     static float old_value = -999.0f;
     static int   old_epoch = -1;
@@ -826,7 +831,7 @@ static void dashboard_temps_apply_layout(bool dual)
     }
 }
 
-void update_temp_fet(float temp_fet)
+static void cockpit_temp_fet(float temp_fet)
 {
     static int old_v1 = -9999, old_v2 = -9999, old_dual = -1, old_epoch = -1;
 
@@ -848,7 +853,7 @@ void update_temp_fet(float temp_fet)
     lv_label_set_text(guider_ui.dashboard_temp_esc_text, text);
 }
 
-void update_temp_motor(float temp_motor)
+static void cockpit_temp_motor(float temp_motor)
 {
     static int old_v1 = -9999, old_v2 = -9999, old_dual = -1, old_epoch = -1;
 
@@ -870,7 +875,7 @@ void update_temp_motor(float temp_motor)
     lv_label_set_text(guider_ui.dashboard_temp_mot_text, text);
 }
 
-void update_amp_hours(float amp_hours)
+static void cockpit_amp_hours(float amp_hours)
 {
     static float old_value = -999.0f;
     if (amp_hours == old_value) {
@@ -883,7 +888,7 @@ void update_amp_hours(float amp_hours)
     lv_label_set_text(guider_ui.dashboard_Ah_text, text);
 }
 
-void update_battery_temp(float battery_temp)
+static void cockpit_battery_temp(float battery_temp)
 {
     static float old_value = -999.0f;
     if (battery_temp == old_value) {
@@ -899,7 +904,7 @@ void update_battery_temp(float battery_temp)
     // lv_label_set_text(guider_ui.dashboard_temp_bat_text, text);
 }
 
-void update_battery_voltage(float battery_voltage)
+static void cockpit_battery_voltage(float battery_voltage)
 {
     static float old_value = -999.0f;
     if (battery_voltage == old_value) {
@@ -918,7 +923,7 @@ void update_battery_voltage(float battery_voltage)
 }
 
 
-void update_odometer(float odometer)
+static void cockpit_odometer(float odometer)
 {
     static float old_value = -999.0f;
     static int   old_epoch = -1;
@@ -935,7 +940,7 @@ void update_odometer(float odometer)
     lv_label_set_text(guider_ui.dashboard_odo_text,text);
 }
 
-void dashboard_units_changed(void)
+static void cockpit_units_changed(void)
 {
     /* Force the value setters to re-format on their next push even though the
      * canonical km/km-h numbers haven't changed. */
@@ -960,13 +965,13 @@ void dashboard_units_changed(void)
         lv_label_set_text(guider_ui.dashboard_col_ctmp_unit, settings_wrapper_temp_unit());
 }
 
-void update_fps(int fps)
+static void cockpit_fps(int fps)
 {
     /* Cockpit: fps_text removed — FPS counter is not displayed anymore. */
     (void)fps;
 }
 
-void update_uptime(uint32_t uptime)
+static void cockpit_uptime(uint32_t uptime)
 {
     int value = uptime/1000;
     static uint32_t old_value = -999;
@@ -980,7 +985,7 @@ void update_uptime(uint32_t uptime)
     lv_label_set_text(guider_ui.dashboard_uptime_text,text);
 }
 
-void update_cur_time(int hour, int minute, int second)
+static void cockpit_cur_time(int hour, int minute, int second)
 {
     if (!guider_ui.dashboard_cur_time_label) return;
     static int old_h = -1, old_m = -1, old_s = -1;
@@ -995,7 +1000,7 @@ void update_cur_time(int hour, int minute, int second)
  * label, which boots hidden when the wall clock is compiled out. The
  * caller (vesc_ui_updater) polls notif_bridge and hides the label again
  * via hide_cur_time() once the phone stops sending updates. */
-void update_cur_time_hm(int hour, int minute)
+static void cockpit_cur_time_hm(int hour, int minute)
 {
     lv_obj_t *lbl = guider_ui.dashboard_cur_time_label;
     if (!lbl) return;
@@ -1011,7 +1016,7 @@ void update_cur_time_hm(int hour, int minute)
     }
 }
 
-void hide_cur_time(void)
+static void cockpit_hide_cur_time(void)
 {
     lv_obj_t *lbl = guider_ui.dashboard_cur_time_label;
     if (lbl && !lv_obj_has_flag(lbl, LV_OBJ_FLAG_HIDDEN)) {
@@ -1019,7 +1024,7 @@ void hide_cur_time(void)
     }
 }
 
-void update_mode_text(uint8_t mode)
+static void cockpit_mode_text(uint8_t mode)
 {
     static uint8_t old_mode = -1;
     if (mode == old_mode) {
@@ -1032,7 +1037,7 @@ void update_mode_text(uint8_t mode)
     lv_label_set_text(guider_ui.dashboard_mode_text,text);
 }
 
-void update_ble_status(bool connected)
+static void cockpit_ble_status(bool connected)
 {
     static bool old_state = false;
     if (connected == old_state) {
@@ -1053,7 +1058,7 @@ void update_ble_status(bool connected)
     }
 }
 
-void update_cruise_control_status(bool active)
+static void cockpit_cruise_control_status(bool active)
 {
     static bool old_state = false;
     if (active == old_state) {
@@ -1077,7 +1082,7 @@ void update_cruise_control_status(bool active)
     }
 }
 
-void update_esc_connection_status(bool connected)
+static void cockpit_esc_connection_status(bool connected)
 {
     static bool old_state = true;
     static uint32_t last_blink_time = 0;
@@ -1130,20 +1135,20 @@ void update_esc_connection_status(bool connected)
     }
 }
 
-void update_navigation_icon(const uint8_t *img_data, uint32_t data_size, uint16_t width, uint16_t height, lv_img_cf_t color_format)
+static void cockpit_navigation_icon(const uint8_t *img_data, uint32_t data_size, uint16_t width, uint16_t height, lv_img_cf_t color_format)
 {
     /* Cockpit: navigation_icon removed — there is nowhere to render the
      * navigation icon, so buffer allocations would be pointless. */
     (void)img_data; (void)data_size; (void)width; (void)height; (void)color_format;
 }
 
-void update_navigation_text(const char *text)
+static void cockpit_navigation_text(const char *text)
 {
     /* Cockpit: navigation_text removed from the project. */
     (void)text;
 }
 
-void update_music_text(const char *text)
+static void cockpit_music_text(const char *text)
 {
     /* Cockpit: music_text removed from the project. */
     (void)text;
@@ -1192,6 +1197,7 @@ static debounced_commit_t s_brightness_commit;
 static debounced_commit_t s_controller_id_commit;
 static debounced_commit_t s_battery_capacity_commit;
 static debounced_commit_t s_power_max_commit;
+static debounced_commit_t s_theme_commit;
 
 // Target VESC ID — value-change callback (volatile + debounced NVS commit)
 static void target_id_on_change(num_field_t *f) {
@@ -1243,6 +1249,21 @@ static void can_speed_dropdown_event_cb(lv_event_t *e) {
         // Update info label
         lv_label_set_text(settings_info_label, "CAN speed requires restart!");
     }
+}
+
+/* Dashboard theme dropdown. Live-switches the dashboard (no restart) and
+ * debounces the NVS write — same volatile-cache + deferred-persist pattern as
+ * the other settings so the flash commit never stalls the LVGL task. The
+ * dropdown index maps 1:1 to the theme registry order. */
+static void theme_dropdown_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+    uint16_t sel = lv_dropdown_get_selected(lv_event_get_target(e));
+    /* Runs on the LVGL thread (input handling) — safe to rebuild screens. The
+     * Settings screen is up, so dashboard_theme_set rebuilds the dashboard
+     * offscreen; it shows when the user taps "exit". */
+    dashboard_theme_set((int)sel);
+    settings_wrapper_set_dashboard_theme_volatile((uint8_t)sel);
+    debounced_commit_schedule(&s_theme_commit, settings_wrapper_persist_dashboard_theme);
 }
 
 /* Public entry from the dashboard's invisible full-screen brightness drag
@@ -2087,7 +2108,8 @@ static void reset_button_event_cb(lv_event_t *e) {
         settings_wrapper_set_wheel_diameter_mm(200); // 200mm
         settings_wrapper_set_motor_poles(7); // Standard for VESC
         settings_wrapper_set_power_max_kw(4.5f);
-        
+        settings_wrapper_set_dashboard_theme(0); // Cockpit
+
         // Update UI elements
         if (s_target_id_field.label)        num_field_set(&s_target_id_field, 10);
         if (s_second_head_id_field.label)   num_field_set(&s_second_head_id_field, 11);
@@ -2097,6 +2119,10 @@ static void reset_button_event_cb(lv_event_t *e) {
         if (settings_can_speed_dropdown) {
             lv_dropdown_set_selected(settings_can_speed_dropdown, 3);
         }
+        if (settings_theme_dropdown) {
+            lv_dropdown_set_selected(settings_theme_dropdown, 0);
+        }
+        dashboard_theme_set(0);   // live-switch back to cockpit
         if (settings_brightness_slider) {
             lv_slider_set_value(settings_brightness_slider, 80, LV_ANIM_ON);
         }
@@ -2228,7 +2254,37 @@ void settings_ui_init(lv_ui *ui) {
     lv_obj_add_event_cb(settings_can_speed_dropdown, can_speed_dropdown_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     y_pos += SETTINGS_ROW_H;
-    
+
+    // ========== Dashboard Theme Dropdown ==========
+    // Options are built from the dashboard-theme registry, so any theme added
+    // (via theme_*_register in custom_init_once) shows up here automatically.
+    settings_theme_label = settings_heading_create(ui->settings, y_pos, "Dashboard theme:");
+
+    char theme_opts[192];
+    size_t theme_off = 0;
+    int theme_n = dashboard_theme_count();
+    for (int i = 0; i < theme_n && theme_off < sizeof(theme_opts); i++) {
+        const dashboard_theme_t *t = dashboard_theme_get(i);
+        theme_off += snprintf(theme_opts + theme_off, sizeof(theme_opts) - theme_off,
+                              "%s%s", i ? "\n" : "", (t && t->name) ? t->name : "?");
+    }
+    if (theme_n == 0) snprintf(theme_opts, sizeof(theme_opts), "Cockpit");
+
+    settings_theme_dropdown = lv_dropdown_create(ui->settings);
+    lv_dropdown_set_options(settings_theme_dropdown, theme_opts);
+    int active_theme = dashboard_theme_active_index();
+    lv_dropdown_set_selected(settings_theme_dropdown, active_theme < 0 ? 0 : active_theme);
+    lv_obj_set_pos(settings_theme_dropdown, 400, y_pos + 5);
+    lv_obj_set_size(settings_theme_dropdown, 390, 50);
+    lv_obj_set_style_bg_color(settings_theme_dropdown, lv_color_hex(0x2a3440), 0);
+    lv_obj_set_style_text_color(settings_theme_dropdown, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(settings_theme_dropdown, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_border_width(settings_theme_dropdown, 0, 0);
+    lv_obj_set_style_radius(settings_theme_dropdown, 8, 0);
+    lv_obj_add_event_cb(settings_theme_dropdown, theme_dropdown_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    y_pos += SETTINGS_ROW_H;
+
     // ========== Battery Capacity ==========
     settings_battery_capacity_label = settings_heading_create(ui->settings, y_pos, "Battery Capacity (Ah):");
     s_battery_capacity_field = (num_field_t){
@@ -2946,5 +3002,115 @@ void settings_ui_init(lv_ui *ui) {
     lv_obj_set_style_text_font(fw_label, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_line_space(fw_label, 4, 0);
 #endif
+}
+
+/* ======================================================================== *
+ *  Cockpit theme (theme 0) — the default GUI Guider dashboard, wrapped in
+ *  the dashboard-theme interface. The static cockpit_*() render functions
+ *  above are the implementation; the table below binds them to the registry.
+ *  The public update_*() entry points are the dispatchers in
+ *  dashboard_theme.c, which forward to whichever theme's ops are active.
+ * ======================================================================== */
+
+static lv_obj_t *cockpit_create(void)
+{
+    /* (Re)build the GUI Guider dashboard screen and apply per-screen chrome.
+     * setup_scr_dashboard() points guider_ui.dashboard at the fresh screen. */
+    setup_scr_dashboard(&guider_ui);
+    cockpit_screen_init(&guider_ui);
+    return guider_ui.dashboard;
+}
+
+static void cockpit_destroy(void)
+{
+    /* The screen object itself is freed by the switcher. Reset the cached power
+     * inputs so a rebuilt cockpit recomputes from scratch; the per-setter dedup
+     * caches re-sync via the units-epoch bump in cockpit_screen_init(). */
+    s_cockpit_last_current_a = 0.0f;
+    s_cockpit_last_voltage_v = 0.0f;
+    atomic_store(&s_cockpit_speed_value, 0);
+    atomic_store(&s_cockpit_battery_proc_value, 0);
+
+    /* The Settings power-max handler calls cockpit_refresh_power_max_label() to
+     * live-preview the "X.X KW" caption; once our screen is freed that widget
+     * pointer dangles. NULL it so the function's own guard short-circuits while
+     * another theme is active. setup_scr_dashboard() repopulates it on rebuild. */
+    guider_ui.dashboard_power_max_val = NULL;
+}
+
+static lv_obj_t *cockpit_music_tile(void)
+{
+    return guider_ui.dashboard_music_info_tile;
+}
+
+static const dashboard_theme_ops_t cockpit_ops = {
+    .speed                 = cockpit_speed,
+    .current               = cockpit_current,
+    .battery_proc          = cockpit_battery_proc,
+    .battery_voltage       = cockpit_battery_voltage,
+    .battery_temp          = cockpit_battery_temp,
+    .temp_fet              = cockpit_temp_fet,
+    .temp_motor            = cockpit_temp_motor,
+    .trip                  = cockpit_trip,
+    .range                 = cockpit_range,
+    .odometer              = cockpit_odometer,
+    .amp_hours             = cockpit_amp_hours,
+    .uptime                = cockpit_uptime,
+    .fps                   = cockpit_fps,
+    .ble_status            = cockpit_ble_status,
+    .esc_connection_status = cockpit_esc_connection_status,
+    .cruise_control_status = cockpit_cruise_control_status,
+    .cruise_speed          = cockpit_cruise_speed,
+    .mode_text             = cockpit_mode_text,
+    .units_changed         = cockpit_units_changed,
+    .cur_time              = cockpit_cur_time,
+    .cur_time_hm           = cockpit_cur_time_hm,
+    .hide_cur_time         = cockpit_hide_cur_time,
+    .navigation_icon       = cockpit_navigation_icon,
+    .navigation_text       = cockpit_navigation_text,
+    .music_text            = cockpit_music_text,
+};
+
+static const dashboard_theme_t cockpit_theme = {
+    .id         = "cockpit",
+    .name       = "Cockpit",
+    .create     = cockpit_create,
+    .destroy    = cockpit_destroy,
+    .music_tile = cockpit_music_tile,
+    .ops        = &cockpit_ops,
+};
+
+/* One-time init: NVS-backed settings, the format-notice timer, and the theme
+ * registry. Idempotent. Theme registration order == dropdown order; index 0
+ * (cockpit) is the default stored in dev_settings ("dash_theme"). */
+void custom_init_once(void)
+{
+    static bool done;
+    if (done) return;
+    done = true;
+
+    settings_wrapper_init();
+
+#ifdef LV_REALDEVICE
+    /* Watch for the one-time backup-FS format and show a notice while it runs. */
+    if (!s_fmt_overlay_tmr) {
+        s_fmt_overlay_tmr = lv_timer_create(fmt_overlay_timer_cb, 200, NULL);
+    }
+#endif
+
+    dashboard_theme_register(&cockpit_theme);
+    theme_ref_register();   /* scaffold/reference theme — see theme_ref.c */
+}
+
+/* Simulator / desktop-port entry point. setup_ui() already built and loaded the
+ * cockpit screen before this runs, so register themes, apply the per-screen
+ * chrome, and adopt the cockpit as active WITHOUT rebuilding it. The device path
+ * (components/vesc_ui/vesc_ui.c) instead calls custom_init_once() +
+ * dashboard_theme_build(saved_index). */
+void custom_init(lv_ui *ui)
+{
+    custom_init_once();
+    cockpit_screen_init(ui);
+    dashboard_theme_adopt(0);
 }
 

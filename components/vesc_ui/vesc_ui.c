@@ -5,6 +5,8 @@
 #include "gui_guider.h"
 #include "events_init.h"
 #include "custom.h"
+#include "dashboard_theme.h"
+#include "dev_settings.h"
 
 /* Single global GUI Guider state — referenced as `extern lv_ui guider_ui`
  * by generated and custom code. Definition lives here. */
@@ -16,20 +18,23 @@ void vesc_ui_init(void)
 {
     if (s_inited) return;
     int64_t t0 = esp_timer_get_time();
-    /* Same as setup_ui() in gui_guider.c minus the lv_scr_load(dashboard)
-     * — caller (ui_mode) controls which screen is active. */
+    /* Like setup_ui() in gui_guider.c, but theme-aware and minus the
+     * lv_scr_load() — ui_mode controls which screen is active. custom_init_once()
+     * registers the themes (and inits NVS settings); dashboard_theme_build()
+     * then constructs the saved theme's screen offscreen into guider_ui.dashboard. */
     init_scr_del_flag(&guider_ui);
     init_keyboard(&guider_ui);
-    setup_scr_dashboard(&guider_ui);
+    custom_init_once();
     int64_t t1 = esp_timer_get_time();
-    custom_init(&guider_ui);
+    dashboard_theme_build(settings_get_dashboard_theme());
     int64_t t2 = esp_timer_get_time();
-    ESP_LOGI("vesc_ui", "init: setup=%lldms custom=%lldms TOTAL=%lldms",
-             (t1 - t0) / 1000, (t2 - t1) / 1000, (t2 - t0) / 1000);
+    ESP_LOGI("vesc_ui", "init: once=%lldms build=%lldms TOTAL=%lldms (theme=%d/%d)",
+             (t1 - t0) / 1000, (t2 - t1) / 1000, (t2 - t0) / 1000,
+             dashboard_theme_active_index(), dashboard_theme_count());
     s_inited = true;
 }
 
 lv_obj_t *vesc_ui_get_screen(void)
 {
-    return s_inited ? guider_ui.dashboard : NULL;
+    return s_inited ? dashboard_theme_active_screen() : NULL;
 }

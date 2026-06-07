@@ -19,6 +19,13 @@ extern "C" {
  * (no-op after the first successful attach). */
 esp_err_t music_info_view_attach(lv_obj_t *parent);
 
+/* Detach from the current tile: stop the poller and drop widget references.
+ * The widgets are children of the hosting dashboard screen and are freed when
+ * that screen is deleted — this must NOT lv_obj_del them. Used by the dashboard
+ * theme switcher before the hosting screen is rebuilt; pair with a fresh
+ * music_info_view_attach() on the new theme's tile. */
+void music_info_view_detach(void);
+
 #ifdef __cplusplus
 }
 #endif

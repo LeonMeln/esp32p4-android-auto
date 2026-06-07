@@ -40,6 +40,7 @@ static struct {
     bool use_fahrenheit;
     bool second_head_enabled;
     uint8_t second_head_id;
+    uint8_t dashboard_theme;
 } sim_settings = {
     .target_vesc_id = 10,
     .can_speed_index = 3,  // 1000 kbps
@@ -57,6 +58,7 @@ static struct {
     .use_fahrenheit = false,
     .second_head_enabled = false,
     .second_head_id = 11,
+    .dashboard_theme = 0,
 };
 #endif
 
@@ -382,6 +384,36 @@ void settings_wrapper_set_second_head_id_volatile(uint8_t id) {
 void settings_wrapper_persist_second_head_id(void) {
 #if !SIMULATOR_MODE
     settings_persist_second_head_id();
+#endif
+}
+
+uint8_t settings_wrapper_get_dashboard_theme(void) {
+#if SIMULATOR_MODE
+    return sim_settings.dashboard_theme;
+#else
+    return settings_get_dashboard_theme();
+#endif
+}
+
+void settings_wrapper_set_dashboard_theme(uint8_t theme) {
+#if SIMULATOR_MODE
+    sim_settings.dashboard_theme = theme;
+#else
+    settings_set_dashboard_theme(theme);
+#endif
+}
+
+void settings_wrapper_set_dashboard_theme_volatile(uint8_t theme) {
+#if SIMULATOR_MODE
+    sim_settings.dashboard_theme = theme;
+#else
+    settings_set_dashboard_theme_volatile(theme);
+#endif
+}
+
+void settings_wrapper_persist_dashboard_theme(void) {
+#if !SIMULATOR_MODE
+    settings_persist_dashboard_theme();
 #endif
 }
 

@@ -16,6 +16,10 @@ extern "C" {
 #include "gui_guider.h"
 
 void custom_init(lv_ui *ui);
+/* One-time, screen-independent init (NVS settings, theme registry, the
+ * format-notice timer). The device path calls this directly from vesc_ui_init();
+ * the simulator's custom_init() calls it too. Idempotent. */
+void custom_init_once(void);
 void settings_ui_init(lv_ui *ui);
 
 /* VESC Tool controller-config menu. Opened from the dashboard VESC status

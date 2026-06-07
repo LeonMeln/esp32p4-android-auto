@@ -45,6 +45,7 @@ void port_start_app_hook(void)
 #include "notif_toast.h"
 #include "music_info_view.h"
 #include "gui_guider.h"
+#include "dashboard_theme.h"
 #include "bt_agent_ota.h"
 #include "bt_link.h"
 #include "c6_ota.h"
@@ -180,6 +181,17 @@ static void on_brightness_changed(uint8_t pct)
     bsp_display_brightness_set(pct);
 }
 
+/* dashboard_theme switch hook → re-home the phone-side music tile onto the
+ * active theme's widget (or tear it down when the theme has none). Fires on the
+ * first build and on every live theme switch, always on the LVGL thread with
+ * the BSP lock already held by the caller. */
+static void on_dashboard_theme_switched(lv_obj_t *screen, lv_obj_t *music_tile)
+{
+    (void)screen;
+    music_info_view_detach();
+    if (music_tile) music_info_view_attach(music_tile);
+}
+
 /* settings_set_controller_id → here. Reinit TWAI so STATUS_* frames go
  * out under the new ID. Speed comes back from settings (single source). */
 static void on_controller_id_changed(uint8_t new_id)
@@ -284,6 +296,11 @@ void app_main(void)
      * from frame 1. */
     install_lvgl_touch_indev();
 
+    /* Register the music-tile re-home hook BEFORE the dashboard is built, so
+     * the very first theme build (inside ui_mode_init) attaches the music tile
+     * via the same path a live theme switch uses. */
+    dashboard_theme_set_switch_cb(on_dashboard_theme_switched);
+
     /* Build the VESC dashboard offscreen and arm the 3-finger gesture
      * (works in both AA and VESC modes, even before phone connects).
      *
@@ -304,17 +321,10 @@ void app_main(void)
         touch_input_set_gesture_cb(ui_mode_toggle);
         touch_input_start(NULL, NULL);
 
-        /* Plug the phone-side music info into GUI Guider's dashboard tile.
-         * Wires through guider_ui (built inside ui_mode_init) and the
-         * BLE-driven notif_bridge state. Skipped silently if the tile is
-         * absent (older GUI Guider exports). bsp_display_lock is required
-         * because we're touching LVGL from the main task. */
-        if (bsp_display_lock(200) == ESP_OK) {
-            if (guider_ui.dashboard_music_info_tile) {
-                music_info_view_attach(guider_ui.dashboard_music_info_tile);
-            }
-            bsp_display_unlock();
-        }
+        /* The phone-side music tile is now attached by the dashboard-theme
+         * switch hook (on_dashboard_theme_switched), fired during the first
+         * theme build inside ui_mode_init — no manual attach needed here, and
+         * it re-homes correctly across live theme switches. */
     }
 
     /* VESC CAN bring-up. Independent from the AA pipeline — runs the

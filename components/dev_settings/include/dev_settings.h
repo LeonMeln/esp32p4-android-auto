@@ -41,6 +41,10 @@ bool                 settings_get_use_imperial(void);
 bool                 settings_get_use_fahrenheit(void);
 bool                 settings_get_second_head_enabled(void);
 uint8_t              settings_get_second_head_id(void);
+/* Index into the dashboard-theme registry (see dashboard_theme.h). Default 0
+ * = cockpit. Callers must clamp against dashboard_theme_count() since the
+ * stored index could outrun the registry after a firmware downgrade. */
+uint8_t              settings_get_dashboard_theme(void);
 
 /* Wall-clock API. RTC-only — relies on the vbat_experiment poke in
  * main.c to keep LP domain alive on USB-unplug via the CR2032 on H8.
@@ -65,6 +69,7 @@ void settings_set_use_imperial(bool on);
 void settings_set_use_fahrenheit(bool on);
 void settings_set_second_head_enabled(bool on);
 void settings_set_second_head_id(uint8_t id);
+void settings_set_dashboard_theme(uint8_t theme);
 
 /* Debounced setters — update the RAM cache and fire any hot-apply callback
  * immediately, but DO NOT touch NVS. The UI pairs them with the matching
@@ -78,6 +83,7 @@ void settings_set_controller_id_volatile(uint8_t id);
 void settings_set_battery_capacity_volatile(float capacity);
 void settings_set_power_max_kw_volatile(float power_max_kw);
 void settings_set_second_head_id_volatile(uint8_t id);
+void settings_set_dashboard_theme_volatile(uint8_t theme);
 
 void settings_persist_target_vesc_id(void);
 void settings_persist_screen_brightness(void);
@@ -85,6 +91,7 @@ void settings_persist_controller_id(void);
 void settings_persist_battery_capacity(void);
 void settings_persist_power_max_kw(void);
 void settings_persist_second_head_id(void);
+void settings_persist_dashboard_theme(void);
 
 /* Hot-apply hooks: registered by main once the corresponding subsystem is
  * up. settings_set_* fires the callback synchronously on the caller after

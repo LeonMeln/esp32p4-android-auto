@@ -364,3 +364,26 @@ esp_err_t music_info_view_attach(lv_obj_t *parent)
     ESP_LOGI(TAG, "attached to %p (tile %dx%d)", parent, TILE_W, TILE_H);
     return ESP_OK;
 }
+
+void music_info_view_detach(void)
+{
+    /* Called before the dashboard screen that hosts our tile is torn down (a
+     * theme switch). Stop the poller and drop every widget reference — the
+     * objects are children of the about-to-be-deleted screen, so LVGL frees
+     * them with it; we must not lv_obj_del them here. The JPEG pipeline
+     * (decoder + PSRAM frame buffer) is screen-independent and intentionally
+     * kept, so a re-attach is cheap. After this, music_info_view_attach() will
+     * rebuild the tile on the next theme's widget. */
+    if (s_poll) { lv_timer_del(s_poll); s_poll = NULL; }
+    s_root            = NULL;
+    s_art_img         = NULL;
+    s_art_fallback_bg = NULL;
+    s_overlay         = NULL;
+    s_art_glyph       = NULL;
+    s_title_lbl       = NULL;
+    s_artist_lbl      = NULL;
+    /* Force the next poll to re-push the current track to the fresh widgets. */
+    s_last_title[0]  = '\0';
+    s_last_artist[0] = '\0';
+    s_last_playing   = -1;
+}
