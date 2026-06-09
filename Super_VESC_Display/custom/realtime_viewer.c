@@ -223,7 +223,7 @@ static void sim_unloaded_cb(lv_event_t *e)
 static void sim_back_cb(lv_event_t *e)
 {
     (void)e;
-    lv_scr_load_anim(guider_ui.dashboard, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
+    lv_scr_load_anim(guider_ui.dashboard_Classic, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
 }
 
 void show_realtime_viewer(void)

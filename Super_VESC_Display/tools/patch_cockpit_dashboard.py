@@ -24,7 +24,10 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TARGET = os.path.join(ROOT, "generated", "setup_scr_dashboard.c")
+# The cockpit screen was renamed dashboard -> dashboard_Classic in GUI Guider,
+# so the generated file is setup_scr_dashboard_Classic.c. The RE_CREATE regex
+# below still matches its widgets (now ui->dashboard_Classic_<name>).
+TARGET = os.path.join(ROOT, "generated", "setup_scr_dashboard_Classic.c")
 
 # `<indent>ui->dashboard_<name> = lv_textarea_create(...)`
 RE_CREATE = re.compile(

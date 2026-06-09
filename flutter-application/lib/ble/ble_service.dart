@@ -14,6 +14,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../bridge/foreground_bridge.dart';
+import '../firmware/ble_ota.dart';
 import '../firmware/ota_info.dart';
 import 'messages.dart';
 import 'protocol.dart';
@@ -43,6 +44,10 @@ class BleService {
   // Optional — null when the firmware predates the OTA-from-app feature.
   // Read on demand from the firmware-update screen.
   BluetoothCharacteristic? _otaInfo;
+  // Optional — null when the firmware predates BLE OTA (...0007/...0008).
+  // Present together; drive the over-BLE firmware flash (see bleOta).
+  BluetoothCharacteristic? _otaCtrl;
+  BluetoothCharacteristic? _otaData;
   Timer? _clockTimer;
   StreamSubscription<List<int>>? _outSub;
   StreamSubscription<BluetoothConnectionState>? _connSub;
@@ -172,10 +177,14 @@ class BleService {
     // and leave the field null if the head unit doesn't advertise it.
     _time = null;
     _otaInfo = null;
+    _otaCtrl = null;
+    _otaData = null;
     for (final c in svc.characteristics) {
       final u = c.uuid.toString().toLowerCase();
       if (u == NotifBridgeUuids.charTime) _time = c;
       if (u == NotifBridgeUuids.charOtaInfo) _otaInfo = c;
+      if (u == NotifBridgeUuids.charOtaCtrl) _otaCtrl = c;
+      if (u == NotifBridgeUuids.charOtaData) _otaData = c;
     }
     await _outbound!.setNotifyValue(true);
     await _outSub?.cancel();
@@ -221,6 +230,127 @@ class BleService {
       return OtaInfo.parse(raw);
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Whether the connected head unit can be flashed straight over BLE
+  /// (firmware exposes the ...0007/...0008 OTA characteristics).
+  bool get supportsBleOta => _otaCtrl != null && _otaData != null;
+
+  /// Flash [image] to the head unit over the BLE link (no WiFi/SoftAP hop).
+  /// [digest] is the 32-byte SHA-256 of [image]; the head unit verifies it
+  /// before committing. [onUpload] reports the upload fraction (0..1) and
+  /// [onVerify] fires once the bytes are sent and the device is
+  /// writing/verifying. Returns whether the flash succeeded plus, on failure,
+  /// an i18n key (see lib/i18n/strings.dart) the UI maps to localized text —
+  /// this layer has no BuildContext. Never throws.
+  Future<({bool ok, String? errorKey})> bleOta(
+    Uint8List image,
+    Uint8List digest, {
+    void Function(double fraction)? onUpload,
+    void Function()? onVerify,
+  }) async {
+    final ctrl = _otaCtrl;
+    final data = _otaData;
+    if (ctrl == null || data == null || _state != BleConnState.connected) {
+      return (ok: false, errorKey: 'fw.ota.err.noconn');
+    }
+    if (digest.length != 32) {
+      return (ok: false, errorKey: 'fw.ota.err.badsha');
+    }
+
+    // Broadcast so we can arm a fresh one-shot listener for each handshake
+    // step without re-listening to a single-subscription stream.
+    final events = StreamController<({int status, int detail})>.broadcast();
+    StreamSubscription<List<int>>? sub;
+    try {
+      await ctrl.setNotifyValue(true);
+      sub = ctrl.onValueReceived.listen((raw) {
+        if (raw.isEmpty) return;
+        final bd = ByteData.sublistView(Uint8List.fromList(raw));
+        final status = bd.getUint8(0);
+        final detail = raw.length >= 5 ? bd.getUint32(1, Endian.little) : 0;
+        events.add((status: status, detail: detail));
+      });
+
+      // BEGIN: [op][u32 len LE][32B sha256]. Arm the READY/ERROR future
+      // *before* writing so a fast reply can't slip past on the broadcast
+      // stream.
+      final readyF = events.stream
+          .firstWhere((e) =>
+              e.status == BleOta.stReady || e.status == BleOta.stError)
+          .timeout(const Duration(seconds: 10));
+      final begin = Uint8List(1 + 4 + 32);
+      begin[0] = BleOta.opBegin;
+      ByteData.sublistView(begin, 1, 5).setUint32(0, image.length, Endian.little);
+      begin.setRange(5, 37, digest);
+      await ctrl.write(begin, withoutResponse: false);
+
+      final ready = await readyF;
+      if (ready.status != BleOta.stReady) {
+        return (ok: false, errorKey: BleOta.errKey(ready.detail));
+      }
+
+      // Stream the image. Cap the chunk at 244 B to fit the firmware's
+      // 260-byte flatten buffer regardless of the negotiated MTU.
+      final mtu = _device?.mtuNow ?? 247;
+      final chunkSize = (mtu - 3).clamp(20, 244);
+      final total = image.length;
+      var off = 0;
+      onUpload?.call(0);
+      while (off < total) {
+        if (_state != BleConnState.connected) {
+          return (ok: false, errorKey: 'fw.ota.err.linklost');
+        }
+        final end = (off + chunkSize) < total ? off + chunkSize : total;
+        await _writeOtaData(data, Uint8List.sublistView(image, off, end));
+        off = end;
+        onUpload?.call(off / total);
+      }
+
+      // END: arm the DONE/ERROR future before writing. The device's
+      // flash+verify pass takes several seconds.
+      onVerify?.call();
+      final doneF = events.stream
+          .firstWhere((e) =>
+              e.status == BleOta.stDone || e.status == BleOta.stError)
+          .timeout(const Duration(seconds: 120));
+      await ctrl.write(Uint8List.fromList([BleOta.opEnd]), withoutResponse: false);
+
+      final done = await doneF;
+      if (done.status == BleOta.stDone) return (ok: true, errorKey: null);
+      return (ok: false, errorKey: BleOta.errKey(done.detail));
+    } on TimeoutException {
+      // Best-effort cancel so a stale staging buffer doesn't linger.
+      try {
+        await ctrl.write(Uint8List.fromList([BleOta.opAbort]),
+            withoutResponse: false);
+      } catch (_) {}
+      return (ok: false, errorKey: 'fw.ota.err.timeout');
+    } catch (_) {
+      return (ok: false, errorKey: 'fw.ota.blefail');
+    } finally {
+      await sub?.cancel();
+      await events.close();
+    }
+  }
+
+  /// Write one OTA data chunk, mirroring [_send]'s busy backoff: fast
+  /// write-without-response first, then acknowledged writes the stack can
+  /// pace once Android's ATT layer reports BUSY (status 201).
+  Future<void> _writeOtaData(BluetoothCharacteristic ch, Uint8List chunk) async {
+    var attempt = 0;
+    while (true) {
+      try {
+        await ch.write(chunk, withoutResponse: attempt < 2);
+        return;
+      } on PlatformException catch (e) {
+        final msg = (e.message ?? '').toLowerCase();
+        final busy = msg.contains('busy') || msg.contains('201');
+        if (!busy || attempt >= 8) rethrow;
+        attempt++;
+        await Future.delayed(Duration(milliseconds: 15 * attempt));
+      }
     }
   }
 
@@ -275,6 +405,8 @@ class BleService {
     _outbound = null;
     _time = null;
     _otaInfo = null;
+    _otaCtrl = null;
+    _otaData = null;
     _setState(BleConnState.idle);
   }
 

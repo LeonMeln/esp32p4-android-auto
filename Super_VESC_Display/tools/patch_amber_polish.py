@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Polish pass for the `dashboard_amber` screen (run AFTER build_amber_dashboard.py).
+"""Polish pass for the `dashboard_Amber` screen (run AFTER build_amber_dashboard.py).
 
 Two fixes, applied consistently to all three representations so the GUI Guider
 editor canvas, a future "Generate Code", and the already-committed
-setup_scr_dashboard_amber.c (what the simulator/firmware actually compile) stay
+setup_scr_dashboard_Amber.c (what the simulator/firmware actually compile) stay
 in sync:
 
   1. FONT FIT — the bottom telemetry row inherited DSEG7 size 40 from the
@@ -35,9 +35,9 @@ ENABLE_GLOW = "--glow" in sys.argv
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GUI  = os.path.join(ROOT, "Super_VESC_Display.guiguider")
-CSRC = os.path.join(ROOT, "generated", "setup_scr_dashboard_amber.c")
-SCREEN = "dashboard_amber"
-PREFIX = "dashboard_amber_"
+CSRC = os.path.join(ROOT, "generated", "setup_scr_dashboard_Amber.c")
+SCREEN = "dashboard_Amber"
+PREFIX = "dashboard_Amber_"
 
 GLOW_COLOR = "#FF7A1A"          # amber neon (theme AMBER_ACCENT)
 GLOW_COLOR_HEX = 0xFF7A1A
@@ -138,7 +138,7 @@ def patch_guiguider():
     return fhits, ahits
 
 
-# ───────────────────────── setup_scr_dashboard_amber.c ─────────────────────────
+# ───────────────────────── setup_scr_dashboard_Amber.c ─────────────────────────
 def patch_c():
     with open(CSRC) as f:
         src = f.read()

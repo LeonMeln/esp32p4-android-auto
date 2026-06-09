@@ -47,7 +47,7 @@ static void ref_settings_btn_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     ui_load_scr_animation(&guider_ui, &guider_ui.settings, guider_ui.settings_del,
-                          &guider_ui.dashboard_del, setup_scr_settings,
+                          &guider_ui.dashboard_Classic_del, setup_scr_settings,
                           LV_SCR_LOAD_ANIM_NONE, 200, 200, false, false);
 }
 

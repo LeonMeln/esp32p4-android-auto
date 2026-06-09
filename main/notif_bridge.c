@@ -17,6 +17,7 @@
  * not at boot. */
 
 #include "notif_bridge.h"
+#include "ble_ota.h"
 #include "board.h"
 
 #include <string.h>
@@ -79,6 +80,18 @@ static const ble_uuid128_t NB_TIME_UUID = BLE_UUID128_INIT(
 static const ble_uuid128_t NB_OTA_UUID = BLE_UUID128_INIT(
     0x06, 0x00, 0x6E, 0x1A, 0x9F, 0x2C, 0x5C, 0x9D,
     0x2A, 0x4D, 0x8E, 0x3F, 0x00, 0x4F, 0x4E, 0x7B);
+/* OTA-CTRL / OTA-DATA chars — BLE firmware update of the P4 main image,
+ * straight over the existing BLE link (no SoftAP / WiFi needed). CTRL carries
+ * BEGIN/END/ABORT commands and notifies READY/PROGRESS/DONE/ERROR; DATA
+ * carries the raw firmware bytes. See ble_ota.c for the wire protocol. Both
+ * are optional/probed by the app, which falls back to the WiFi/HTTP path when
+ * the head unit doesn't expose them. */
+static const ble_uuid128_t NB_OTA_CTRL_UUID = BLE_UUID128_INIT(
+    0x07, 0x00, 0x6E, 0x1A, 0x9F, 0x2C, 0x5C, 0x9D,
+    0x2A, 0x4D, 0x8E, 0x3F, 0x00, 0x4F, 0x4E, 0x7B);
+static const ble_uuid128_t NB_OTA_DATA_UUID = BLE_UUID128_INIT(
+    0x08, 0x00, 0x6E, 0x1A, 0x9F, 0x2C, 0x5C, 0x9D,
+    0x2A, 0x4D, 0x8E, 0x3F, 0x00, 0x4F, 0x4E, 0x7B);
 
 /* ---------- PDU layer ---------- */
 
@@ -105,6 +118,7 @@ static const ble_uuid128_t NB_OTA_UUID = BLE_UUID128_INIT(
 /* ---------- module state ---------- */
 
 static uint16_t s_in_handle, s_out_handle, s_st_handle, s_time_handle, s_ota_handle;
+static uint16_t s_ota_ctrl_handle, s_ota_data_handle;
 static uint16_t s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 
 /* Phone-pushed wall clock. The app writes [hour, minute] every 15 s; we
@@ -452,6 +466,22 @@ static int access_cb(uint16_t conn, uint16_t attr,
         portEXIT_CRITICAL(&s_clock_mux);
         return 0;
     }
+    if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR &&
+        (attr == s_ota_ctrl_handle || attr == s_ota_data_handle)) {
+        /* BLE OTA control / firmware-data channel. Flatten the mbuf and hand
+         * it to ble_ota; the firmware bytes are staged in PSRAM there. The
+         * 260-byte buffer covers the MTU-247 link the app negotiates
+         * (payload ≤ 244). */
+        uint8_t  buf[260];
+        uint16_t pkt_len = OS_MBUF_PKTLEN(ctxt->om);
+        if (pkt_len > sizeof(buf)) return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+        uint16_t out_len = 0;
+        int rc = ble_hs_mbuf_to_flat(ctxt->om, buf, sizeof(buf), &out_len);
+        if (rc != 0) return BLE_ATT_ERR_UNLIKELY;
+        if (attr == s_ota_ctrl_handle) ble_ota_ctrl_write(buf, out_len);
+        else                           ble_ota_data_write(buf, out_len);
+        return 0;
+    }
     if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR && attr == s_ota_handle) {
         /* "<ip>\n<port>\n<ssid>\n<password>\n<version>\n<board-model>" — the
          * app joins the SoftAP and POSTs the matching firmware image to
@@ -522,6 +552,18 @@ static const struct ble_gatt_svc_def s_svcs[] = {
                 .flags      = BLE_GATT_CHR_F_READ,
                 .val_handle = &s_ota_handle,
             },
+            {
+                .uuid       = &NB_OTA_CTRL_UUID.u,
+                .access_cb  = access_cb,
+                .flags      = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY,
+                .val_handle = &s_ota_ctrl_handle,
+            },
+            {
+                .uuid       = &NB_OTA_DATA_UUID.u,
+                .access_cb  = access_cb,
+                .flags      = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
+                .val_handle = &s_ota_data_handle,
+            },
             { 0 },
         },
     },
@@ -541,9 +583,13 @@ void notif_bridge_gatts_register_cb(struct ble_gatt_register_ctxt *ctxt, void *a
     }
 }
 
-void notif_bridge_on_connect(uint16_t conn) { s_conn_handle = conn; }
+void notif_bridge_on_connect(uint16_t conn) {
+    s_conn_handle = conn;
+    ble_ota_set_link(conn, s_ota_ctrl_handle);
+}
 void notif_bridge_on_disconnect(void) {
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+    ble_ota_on_disconnect();
     reasm_reset();
 }
 
@@ -642,5 +688,6 @@ void notif_bridge_init(void)
     s_state_lock = xSemaphoreCreateMutex();
     s_out_q = xQueueCreate(8, sizeof(outbound_cmd_t));
     xTaskCreatePinnedToCore(out_task, "notif_out", 4096, NULL, 5, &s_out_task, 0);
+    ble_ota_init();
     ESP_LOGI(TAG, "notif_bridge ready");
 }

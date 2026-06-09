@@ -257,7 +257,7 @@
 	},
 	"FrontJson": [
 		{
-			"name": "dashboard",
+			"name": "dashboard_Classic",
 			"id": "ehjqt834",
 			"type": "scr",
 			"version": 190,
@@ -10246,7 +10246,7 @@
 			]
 		},
 		{
-			"name": "dashboard_amber",
+			"name": "dashboard_Amber",
 			"id": "am000040",
 			"type": "scr",
 			"version": 190,
@@ -11418,7 +11418,7 @@
 					"id": "am000094",
 					"type": "label",
 					"left": 280,
-					"top": 5,
+					"top": 9,
 					"visible": false,
 					"isLock": 0,
 					"flag": [
@@ -11446,7 +11446,7 @@
 							"radius": 4,
 							"text_color": "#FF3B2F",
 							"text_opa": 255,
-							"font": 22,
+							"font": 12,
 							"text_align": "LV_TEXT_ALIGN_CENTER",
 							"font_family": "DSEG14Classic_Regular",
 							"letter_space": 2,
@@ -15453,15 +15453,15 @@
 					"name": "power_value",
 					"id": "am000029",
 					"type": "label",
-					"left": 630,
-					"top": 75,
+					"left": 620,
+					"top": 83,
 					"visible": true,
 					"isLock": false,
 					"flag": [],
-					"width": 112,
+					"width": 126,
 					"height": 70,
 					"default_style": false,
-					"text": "2.8",
+					"text": "-2.8",
 					"long_mode": "LV_LABEL_LONG_WRAP",
 					"is_static": false,
 					"custom_attribute": [],
@@ -19052,7 +19052,7 @@
 					"id": "am000090",
 					"type": "label",
 					"left": 20,
-					"top": 75,
+					"top": 82,
 					"visible": true,
 					"isLock": false,
 					"flag": [],
@@ -19451,7 +19451,7 @@
 					"name": "uptime_text",
 					"id": "am000059",
 					"type": "label",
-					"left": 205,
+					"left": 195,
 					"top": 5,
 					"visible": true,
 					"isLock": false,
@@ -19890,11 +19890,11 @@
 			"keyboard_font_type": "SourceHanSerifSC_Regular",
 			"keyboard_font_size": 18
 		},
-		"default_scr": "dashboard",
+		"default_scr": "dashboard_Classic",
 		"theme": "LV_THEME_MATERIAL_FLAG_LIGHT",
 		"screen": [
 			{
-				"name": "dashboard",
+				"name": "dashboard_Classic",
 				"id": "ehjqt834",
 				"type": "scr",
 				"version": 190,
@@ -19955,7 +19955,7 @@
 				],
 				"widgets": [
 					{
-						"name": "dashboard_statusbar_sep",
+						"name": "dashboard_Classic_statusbar_sep",
 						"id": "ucgsjv5m",
 						"type": "label",
 						"visible": true,
@@ -20058,7 +20058,7 @@
 						]
 					},
 					{
-						"name": "dashboard_status_vesc",
+						"name": "dashboard_Classic_status_vesc",
 						"id": "cn9qbkti",
 						"type": "label",
 						"visible": true,
@@ -20184,7 +20184,7 @@
 						]
 					},
 					{
-						"name": "dashboard_mode_text",
+						"name": "dashboard_Classic_mode_text",
 						"id": "m8f91qo1",
 						"type": "label",
 						"visible": true,
@@ -20287,7 +20287,7 @@
 						]
 					},
 					{
-						"name": "dashboard_uptime_text",
+						"name": "dashboard_Classic_uptime_text",
 						"id": "j94hivem",
 						"type": "label",
 						"visible": true,
@@ -20390,7 +20390,7 @@
 						]
 					},
 					{
-						"name": "dashboard_status_bt",
+						"name": "dashboard_Classic_status_bt",
 						"id": "uzbql2yo",
 						"type": "label",
 						"visible": true,
@@ -20493,7 +20493,7 @@
 						]
 					},
 					{
-						"name": "dashboard_battery_sep",
+						"name": "dashboard_Classic_battery_sep",
 						"id": "jcz8jnmv",
 						"type": "label",
 						"visible": true,
@@ -20596,7 +20596,7 @@
 						]
 					},
 					{
-						"name": "dashboard_battery_label",
+						"name": "dashboard_Classic_battery_label",
 						"id": "bv4syufy",
 						"type": "label",
 						"visible": true,
@@ -20699,7 +20699,7 @@
 						]
 					},
 					{
-						"name": "dashboard_Battery_proc_text",
+						"name": "dashboard_Classic_Battery_proc_text",
 						"id": "xtgz9bvz",
 						"type": "label",
 						"visible": true,
@@ -20802,7 +20802,7 @@
 						]
 					},
 					{
-						"name": "dashboard_battery_pct",
+						"name": "dashboard_Classic_battery_pct",
 						"id": "znkdd51a",
 						"type": "label",
 						"visible": true,
@@ -20905,7 +20905,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_00",
+						"name": "dashboard_Classic_batt_seg_00",
 						"id": "az13eb85",
 						"type": "label",
 						"visible": true,
@@ -21008,7 +21008,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_01",
+						"name": "dashboard_Classic_batt_seg_01",
 						"id": "0f84ymsp",
 						"type": "label",
 						"visible": true,
@@ -21111,7 +21111,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_02",
+						"name": "dashboard_Classic_batt_seg_02",
 						"id": "wmbdc8al",
 						"type": "label",
 						"visible": true,
@@ -21214,7 +21214,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_03",
+						"name": "dashboard_Classic_batt_seg_03",
 						"id": "le3lejt4",
 						"type": "label",
 						"visible": true,
@@ -21317,7 +21317,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_04",
+						"name": "dashboard_Classic_batt_seg_04",
 						"id": "g3t045mk",
 						"type": "label",
 						"visible": true,
@@ -21420,7 +21420,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_05",
+						"name": "dashboard_Classic_batt_seg_05",
 						"id": "bfxuds4a",
 						"type": "label",
 						"visible": true,
@@ -21523,7 +21523,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_06",
+						"name": "dashboard_Classic_batt_seg_06",
 						"id": "37vniahg",
 						"type": "label",
 						"visible": true,
@@ -21626,7 +21626,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_07",
+						"name": "dashboard_Classic_batt_seg_07",
 						"id": "ih5g97zx",
 						"type": "label",
 						"visible": true,
@@ -21729,7 +21729,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_08",
+						"name": "dashboard_Classic_batt_seg_08",
 						"id": "ye5jea0r",
 						"type": "label",
 						"visible": true,
@@ -21832,7 +21832,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_09",
+						"name": "dashboard_Classic_batt_seg_09",
 						"id": "567lhhni",
 						"type": "label",
 						"visible": true,
@@ -21935,7 +21935,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_10",
+						"name": "dashboard_Classic_batt_seg_10",
 						"id": "zhqpqkh0",
 						"type": "label",
 						"visible": true,
@@ -22038,7 +22038,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_11",
+						"name": "dashboard_Classic_batt_seg_11",
 						"id": "08bg1xbc",
 						"type": "label",
 						"visible": true,
@@ -22141,7 +22141,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_12",
+						"name": "dashboard_Classic_batt_seg_12",
 						"id": "3qq8yre7",
 						"type": "label",
 						"visible": true,
@@ -22244,7 +22244,7 @@
 						]
 					},
 					{
-						"name": "dashboard_batt_seg_13",
+						"name": "dashboard_Classic_batt_seg_13",
 						"id": "1x4tz5ko",
 						"type": "label",
 						"visible": true,
@@ -22347,7 +22347,7 @@
 						]
 					},
 					{
-						"name": "dashboard_battery_range_label",
+						"name": "dashboard_Classic_battery_range_label",
 						"id": "h4vi7sa2",
 						"type": "label",
 						"visible": true,
@@ -22450,7 +22450,7 @@
 						]
 					},
 					{
-						"name": "dashboard_Range_text",
+						"name": "dashboard_Classic_Range_text",
 						"id": "ym4qvylu",
 						"type": "label",
 						"visible": true,
@@ -22553,7 +22553,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_label",
+						"name": "dashboard_Classic_speed_label",
 						"id": "m6whef28",
 						"type": "label",
 						"visible": true,
@@ -22656,7 +22656,7 @@
 						]
 					},
 					{
-						"name": "dashboard_Speed_text",
+						"name": "dashboard_Classic_Speed_text",
 						"id": "wxmwonst",
 						"type": "label",
 						"visible": true,
@@ -22759,7 +22759,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_00",
+						"name": "dashboard_Classic_speed_seg_00",
 						"id": "ro0rhp2b",
 						"type": "label",
 						"visible": false,
@@ -22862,7 +22862,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_01",
+						"name": "dashboard_Classic_speed_seg_01",
 						"id": "ipwk7yc3",
 						"type": "label",
 						"visible": false,
@@ -22965,7 +22965,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_02",
+						"name": "dashboard_Classic_speed_seg_02",
 						"id": "dkbqgi7r",
 						"type": "label",
 						"visible": false,
@@ -23068,7 +23068,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_03",
+						"name": "dashboard_Classic_speed_seg_03",
 						"id": "l0itiwbg",
 						"type": "label",
 						"visible": false,
@@ -23171,7 +23171,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_04",
+						"name": "dashboard_Classic_speed_seg_04",
 						"id": "jey3g20z",
 						"type": "label",
 						"visible": false,
@@ -23274,7 +23274,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_05",
+						"name": "dashboard_Classic_speed_seg_05",
 						"id": "eyamcnj9",
 						"type": "label",
 						"visible": false,
@@ -23377,7 +23377,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_06",
+						"name": "dashboard_Classic_speed_seg_06",
 						"id": "5u615wm2",
 						"type": "label",
 						"visible": false,
@@ -23480,7 +23480,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_07",
+						"name": "dashboard_Classic_speed_seg_07",
 						"id": "bnv0no0s",
 						"type": "label",
 						"visible": false,
@@ -23583,7 +23583,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_08",
+						"name": "dashboard_Classic_speed_seg_08",
 						"id": "l9c29l7v",
 						"type": "label",
 						"visible": false,
@@ -23686,7 +23686,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_09",
+						"name": "dashboard_Classic_speed_seg_09",
 						"id": "vc4upt2i",
 						"type": "label",
 						"visible": false,
@@ -23789,7 +23789,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_10",
+						"name": "dashboard_Classic_speed_seg_10",
 						"id": "1yx22wh1",
 						"type": "label",
 						"visible": false,
@@ -23892,7 +23892,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_seg_11",
+						"name": "dashboard_Classic_speed_seg_11",
 						"id": "olr1xilo",
 						"type": "label",
 						"visible": false,
@@ -23995,7 +23995,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_min",
+						"name": "dashboard_Classic_speed_min",
 						"id": "6sp214wj",
 						"type": "label",
 						"visible": false,
@@ -24098,7 +24098,7 @@
 						]
 					},
 					{
-						"name": "dashboard_speed_max",
+						"name": "dashboard_Classic_speed_max",
 						"id": "u889vwz0",
 						"type": "label",
 						"visible": false,
@@ -24201,7 +24201,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_sep",
+						"name": "dashboard_Classic_power_sep",
 						"id": "xev14cj7",
 						"type": "label",
 						"visible": true,
@@ -24304,7 +24304,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_label",
+						"name": "dashboard_Classic_power_label",
 						"id": "ov1beisw",
 						"type": "label",
 						"visible": true,
@@ -24407,7 +24407,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_value",
+						"name": "dashboard_Classic_power_value",
 						"id": "bfcnll6s",
 						"type": "label",
 						"visible": true,
@@ -24510,7 +24510,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_unit",
+						"name": "dashboard_Classic_power_unit",
 						"id": "4a42qzsc",
 						"type": "label",
 						"visible": true,
@@ -24613,7 +24613,7 @@
 						]
 					},
 					{
-						"name": "dashboard_Current_text",
+						"name": "dashboard_Classic_Current_text",
 						"id": "kplh7ogd",
 						"type": "label",
 						"visible": true,
@@ -24716,7 +24716,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_00",
+						"name": "dashboard_Classic_power_seg_00",
 						"id": "hm11bx6r",
 						"type": "label",
 						"visible": true,
@@ -24819,7 +24819,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_01",
+						"name": "dashboard_Classic_power_seg_01",
 						"id": "haki04rv",
 						"type": "label",
 						"visible": true,
@@ -24922,7 +24922,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_02",
+						"name": "dashboard_Classic_power_seg_02",
 						"id": "0ejcsgnb",
 						"type": "label",
 						"visible": true,
@@ -25025,7 +25025,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_03",
+						"name": "dashboard_Classic_power_seg_03",
 						"id": "rig83q6l",
 						"type": "label",
 						"visible": true,
@@ -25128,7 +25128,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_04",
+						"name": "dashboard_Classic_power_seg_04",
 						"id": "8vjfsl74",
 						"type": "label",
 						"visible": true,
@@ -25231,7 +25231,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_05",
+						"name": "dashboard_Classic_power_seg_05",
 						"id": "8p9ydv7y",
 						"type": "label",
 						"visible": true,
@@ -25334,7 +25334,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_06",
+						"name": "dashboard_Classic_power_seg_06",
 						"id": "jvmc6t53",
 						"type": "label",
 						"visible": true,
@@ -25437,7 +25437,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_07",
+						"name": "dashboard_Classic_power_seg_07",
 						"id": "zalgdsqj",
 						"type": "label",
 						"visible": true,
@@ -25540,7 +25540,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_08",
+						"name": "dashboard_Classic_power_seg_08",
 						"id": "veqeem9s",
 						"type": "label",
 						"visible": true,
@@ -25643,7 +25643,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_09",
+						"name": "dashboard_Classic_power_seg_09",
 						"id": "7e00s1fm",
 						"type": "label",
 						"visible": true,
@@ -25746,7 +25746,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_10",
+						"name": "dashboard_Classic_power_seg_10",
 						"id": "3jfzqxvj",
 						"type": "label",
 						"visible": true,
@@ -25849,7 +25849,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_11",
+						"name": "dashboard_Classic_power_seg_11",
 						"id": "q8fv4g8c",
 						"type": "label",
 						"visible": true,
@@ -25952,7 +25952,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_12",
+						"name": "dashboard_Classic_power_seg_12",
 						"id": "tfy5yo03",
 						"type": "label",
 						"visible": true,
@@ -26055,7 +26055,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_seg_13",
+						"name": "dashboard_Classic_power_seg_13",
 						"id": "3sod1slq",
 						"type": "label",
 						"visible": true,
@@ -26158,7 +26158,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_max_label",
+						"name": "dashboard_Classic_power_max_label",
 						"id": "dbkezfi7",
 						"type": "label",
 						"visible": true,
@@ -26261,7 +26261,7 @@
 						]
 					},
 					{
-						"name": "dashboard_power_max_val",
+						"name": "dashboard_Classic_power_max_val",
 						"id": "lq66d4bm",
 						"type": "label",
 						"visible": true,
@@ -26364,7 +26364,7 @@
 						]
 					},
 					{
-						"name": "dashboard_bottom_bg",
+						"name": "dashboard_Classic_bottom_bg",
 						"id": "2hfn32n1",
 						"type": "label",
 						"visible": true,
@@ -26467,7 +26467,7 @@
 						]
 					},
 					{
-						"name": "dashboard_bottom_top_sep",
+						"name": "dashboard_Classic_bottom_top_sep",
 						"id": "in830p3d",
 						"type": "label",
 						"visible": true,
@@ -26570,7 +26570,7 @@
 						]
 					},
 					{
-						"name": "dashboard_bottom_col_sep_0",
+						"name": "dashboard_Classic_bottom_col_sep_0",
 						"id": "wpg9kdj9",
 						"type": "label",
 						"visible": true,
@@ -26673,7 +26673,7 @@
 						]
 					},
 					{
-						"name": "dashboard_bottom_col_sep_1",
+						"name": "dashboard_Classic_bottom_col_sep_1",
 						"id": "ixn3tc8q",
 						"type": "label",
 						"visible": true,
@@ -26776,7 +26776,7 @@
 						]
 					},
 					{
-						"name": "dashboard_bottom_col_sep_2",
+						"name": "dashboard_Classic_bottom_col_sep_2",
 						"id": "cnrz1yyu",
 						"type": "label",
 						"visible": true,
@@ -26879,7 +26879,7 @@
 						]
 					},
 					{
-						"name": "dashboard_bottom_col_sep_3",
+						"name": "dashboard_Classic_bottom_col_sep_3",
 						"id": "a44dc7uk",
 						"type": "label",
 						"visible": true,
@@ -26982,7 +26982,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_trip_label",
+						"name": "dashboard_Classic_col_trip_label",
 						"id": "5z8pqrgn",
 						"type": "label",
 						"visible": true,
@@ -27085,7 +27085,7 @@
 						]
 					},
 					{
-						"name": "dashboard_TRIP_text",
+						"name": "dashboard_Classic_TRIP_text",
 						"id": "bnwal0wh",
 						"type": "label",
 						"visible": true,
@@ -27188,7 +27188,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_trip_unit",
+						"name": "dashboard_Classic_col_trip_unit",
 						"id": "fax5h2j9",
 						"type": "label",
 						"visible": true,
@@ -27291,7 +27291,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_odo_label",
+						"name": "dashboard_Classic_col_odo_label",
 						"id": "fc5kimws",
 						"type": "label",
 						"visible": true,
@@ -27394,7 +27394,7 @@
 						]
 					},
 					{
-						"name": "dashboard_odo_text",
+						"name": "dashboard_Classic_odo_text",
 						"id": "nxlpzbdg",
 						"type": "label",
 						"visible": true,
@@ -27497,7 +27497,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_odo_unit",
+						"name": "dashboard_Classic_col_odo_unit",
 						"id": "1i6dd1nm",
 						"type": "label",
 						"visible": true,
@@ -27600,7 +27600,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_mtmp_label",
+						"name": "dashboard_Classic_col_mtmp_label",
 						"id": "5bhp8rhu",
 						"type": "label",
 						"visible": true,
@@ -27703,7 +27703,7 @@
 						]
 					},
 					{
-						"name": "dashboard_temp_mot_text",
+						"name": "dashboard_Classic_temp_mot_text",
 						"id": "r34ly0lb",
 						"type": "label",
 						"visible": true,
@@ -27806,7 +27806,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_mtmp_unit",
+						"name": "dashboard_Classic_col_mtmp_unit",
 						"id": "f4ineuz0",
 						"type": "label",
 						"visible": true,
@@ -27909,7 +27909,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_ctmp_label",
+						"name": "dashboard_Classic_col_ctmp_label",
 						"id": "g02j6hls",
 						"type": "label",
 						"visible": true,
@@ -28012,7 +28012,7 @@
 						]
 					},
 					{
-						"name": "dashboard_temp_esc_text",
+						"name": "dashboard_Classic_temp_esc_text",
 						"id": "fgk7y17r",
 						"type": "label",
 						"visible": true,
@@ -28115,7 +28115,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_ctmp_unit",
+						"name": "dashboard_Classic_col_ctmp_unit",
 						"id": "reaxpp80",
 						"type": "label",
 						"visible": true,
@@ -28218,7 +28218,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_avg_label",
+						"name": "dashboard_Classic_col_avg_label",
 						"id": "bttc81yu",
 						"type": "label",
 						"visible": false,
@@ -28321,7 +28321,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_avg_value",
+						"name": "dashboard_Classic_col_avg_value",
 						"id": "2y56ecwa",
 						"type": "label",
 						"visible": false,
@@ -28424,7 +28424,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_avg_unit",
+						"name": "dashboard_Classic_col_avg_unit",
 						"id": "z2e8oq2i",
 						"type": "label",
 						"visible": false,
@@ -28527,7 +28527,7 @@
 						]
 					},
 					{
-						"name": "dashboard_cruise_control_img",
+						"name": "dashboard_Classic_cruise_control_img",
 						"id": "otz0xijh",
 						"type": "img",
 						"visible": true,
@@ -28562,7 +28562,7 @@
 						]
 					},
 					{
-						"name": "dashboard_esc_not_connected_text",
+						"name": "dashboard_Classic_esc_not_connected_text",
 						"id": "z2rs7qcf",
 						"type": "label",
 						"visible": true,
@@ -28667,7 +28667,7 @@
 						]
 					},
 					{
-						"name": "dashboard_Ah_text",
+						"name": "dashboard_Classic_Ah_text",
 						"id": "inwykgj2",
 						"type": "label",
 						"visible": true,
@@ -28770,7 +28770,7 @@
 						]
 					},
 					{
-						"name": "dashboard_Speed_cc_text",
+						"name": "dashboard_Classic_Speed_cc_text",
 						"id": "7cn5s6kj",
 						"type": "label",
 						"visible": true,
@@ -28873,7 +28873,7 @@
 						]
 					},
 					{
-						"name": "dashboard_Settings_text",
+						"name": "dashboard_Classic_Settings_text",
 						"id": "crq2qv5v",
 						"type": "label",
 						"visible": true,
@@ -29269,7 +29269,7 @@
 						]
 					},
 					{
-						"name": "dashboard_song_title_label",
+						"name": "dashboard_Classic_song_title_label",
 						"id": "5luxv7pm",
 						"type": "label",
 						"visible": true,
@@ -29372,7 +29372,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_v_label",
+						"name": "dashboard_Classic_col_v_label",
 						"id": "0wpf5dzt",
 						"type": "label",
 						"visible": true,
@@ -29475,7 +29475,7 @@
 						]
 					},
 					{
-						"name": "dashboard_Voltage_text",
+						"name": "dashboard_Classic_Voltage_text",
 						"id": "3kjpqa3g",
 						"type": "label",
 						"visible": true,
@@ -29578,7 +29578,7 @@
 						]
 					},
 					{
-						"name": "dashboard_col_voltage_label",
+						"name": "dashboard_Classic_col_voltage_label",
 						"id": "7g5iblbq",
 						"type": "label",
 						"visible": true,
@@ -29681,7 +29681,7 @@
 						]
 					},
 					{
-						"name": "dashboard_cur_time_label",
+						"name": "dashboard_Classic_cur_time_label",
 						"id": "umazate1",
 						"type": "label",
 						"visible": true,
@@ -29784,7 +29784,7 @@
 						]
 					},
 					{
-						"name": "dashboard_brightness_slider",
+						"name": "dashboard_Classic_brightness_slider",
 						"id": "huc3lzyk",
 						"type": "slider",
 						"visible": true,
@@ -29996,7 +29996,7 @@
 						]
 					},
 					{
-						"name": "dashboard_music_info",
+						"name": "dashboard_Classic_music_info",
 						"id": "ff49u81o",
 						"type": "tileview",
 						"visible": true,
@@ -30053,7 +30053,7 @@
 						]
 					},
 					{
-						"name": "dashboard_statistics_button",
+						"name": "dashboard_Classic_statistics_button",
 						"id": "grz4zshg",
 						"type": "label",
 						"visible": true,
@@ -30263,7 +30263,7 @@
 									"condition": [],
 									"action": [
 										{
-											"dst": "dashboard",
+											"dst": "dashboard_Classic",
 											"bindCondi": "",
 											"actionList": {
 												"load_screen": {
@@ -30277,7 +30277,7 @@
 											},
 											"dst_type": "scr",
 											"_target": {
-												"name": "dashboard",
+												"name": "dashboard_Classic",
 												"id": "ehjqt834",
 												"type": "scr",
 												"version": 190,
@@ -39998,7 +39998,7 @@
 														"bg_img_recolor_opa": 0
 													}
 												],
-												"layerName": "dashboard"
+												"layerName": "dashboard_Classic"
 											}
 										}
 									]
@@ -40181,7 +40181,7 @@
 				]
 			},
 			{
-				"name": "dashboard_amber",
+				"name": "dashboard_Amber",
 				"id": "am000040",
 				"type": "scr",
 				"version": 190,
@@ -40224,7 +40224,7 @@
 				],
 				"widgets": [
 					{
-						"name": "dashboard_amber_statusbar_sep",
+						"name": "dashboard_Amber_statusbar_sep",
 						"id": "am000081",
 						"type": "label",
 						"visible": true,
@@ -40327,7 +40327,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_status_vesc",
+						"name": "dashboard_Amber_status_vesc",
 						"id": "am000035",
 						"type": "label",
 						"visible": true,
@@ -40432,7 +40432,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_mode_text",
+						"name": "dashboard_Amber_mode_text",
 						"id": "am000069",
 						"type": "label",
 						"visible": true,
@@ -40535,13 +40535,13 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_uptime_text",
+						"name": "dashboard_Amber_uptime_text",
 						"id": "am000059",
 						"type": "label",
 						"visible": true,
 						"flag": [],
 						"pos": [
-							205,
+							195,
 							5
 						],
 						"size": [
@@ -40638,7 +40638,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_status_bt",
+						"name": "dashboard_Amber_status_bt",
 						"id": "am000083",
 						"type": "label",
 						"visible": true,
@@ -40741,7 +40741,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_battery_sep",
+						"name": "dashboard_Amber_battery_sep",
 						"id": "am000060",
 						"type": "label",
 						"visible": true,
@@ -40844,7 +40844,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_battery_label",
+						"name": "dashboard_Amber_battery_label",
 						"id": "am000034",
 						"type": "label",
 						"visible": true,
@@ -40947,7 +40947,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_Battery_proc_text",
+						"name": "dashboard_Amber_Battery_proc_text",
 						"id": "am000090",
 						"type": "label",
 						"visible": true,
@@ -41050,7 +41050,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_battery_pct",
+						"name": "dashboard_Amber_battery_pct",
 						"id": "am000097",
 						"type": "label",
 						"visible": true,
@@ -41153,7 +41153,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_00",
+						"name": "dashboard_Amber_batt_seg_00",
 						"id": "am000028",
 						"type": "label",
 						"visible": true,
@@ -41256,7 +41256,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_01",
+						"name": "dashboard_Amber_batt_seg_01",
 						"id": "am000003",
 						"type": "label",
 						"visible": true,
@@ -41359,7 +41359,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_02",
+						"name": "dashboard_Amber_batt_seg_02",
 						"id": "am000086",
 						"type": "label",
 						"visible": true,
@@ -41462,7 +41462,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_03",
+						"name": "dashboard_Amber_batt_seg_03",
 						"id": "am000066",
 						"type": "label",
 						"visible": true,
@@ -41565,7 +41565,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_04",
+						"name": "dashboard_Amber_batt_seg_04",
 						"id": "am000048",
 						"type": "label",
 						"visible": true,
@@ -41668,7 +41668,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_05",
+						"name": "dashboard_Amber_batt_seg_05",
 						"id": "am000030",
 						"type": "label",
 						"visible": true,
@@ -41771,7 +41771,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_06",
+						"name": "dashboard_Amber_batt_seg_06",
 						"id": "am000010",
 						"type": "label",
 						"visible": true,
@@ -41874,7 +41874,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_07",
+						"name": "dashboard_Amber_batt_seg_07",
 						"id": "am000054",
 						"type": "label",
 						"visible": true,
@@ -41977,7 +41977,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_08",
+						"name": "dashboard_Amber_batt_seg_08",
 						"id": "am000091",
 						"type": "label",
 						"visible": true,
@@ -42080,7 +42080,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_09",
+						"name": "dashboard_Amber_batt_seg_09",
 						"id": "am000016",
 						"type": "label",
 						"visible": true,
@@ -42183,7 +42183,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_10",
+						"name": "dashboard_Amber_batt_seg_10",
 						"id": "am000096",
 						"type": "label",
 						"visible": true,
@@ -42286,7 +42286,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_11",
+						"name": "dashboard_Amber_batt_seg_11",
 						"id": "am000001",
 						"type": "label",
 						"visible": true,
@@ -42389,7 +42389,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_12",
+						"name": "dashboard_Amber_batt_seg_12",
 						"id": "am000013",
 						"type": "label",
 						"visible": true,
@@ -42492,7 +42492,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_batt_seg_13",
+						"name": "dashboard_Amber_batt_seg_13",
 						"id": "am000006",
 						"type": "label",
 						"visible": true,
@@ -42595,7 +42595,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_battery_range_label",
+						"name": "dashboard_Amber_battery_range_label",
 						"id": "am000050",
 						"type": "label",
 						"visible": true,
@@ -42698,7 +42698,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_Range_text",
+						"name": "dashboard_Amber_Range_text",
 						"id": "am000092",
 						"type": "label",
 						"visible": true,
@@ -42801,7 +42801,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_label",
+						"name": "dashboard_Amber_speed_label",
 						"id": "am000068",
 						"type": "label",
 						"visible": true,
@@ -42904,7 +42904,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_Speed_text",
+						"name": "dashboard_Amber_Speed_text",
 						"id": "am000088",
 						"type": "label",
 						"visible": true,
@@ -43005,7 +43005,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_00",
+						"name": "dashboard_Amber_speed_seg_00",
 						"id": "am000078",
 						"type": "label",
 						"visible": false,
@@ -43108,7 +43108,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_01",
+						"name": "dashboard_Amber_speed_seg_01",
 						"id": "am000057",
 						"type": "label",
 						"visible": false,
@@ -43211,7 +43211,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_02",
+						"name": "dashboard_Amber_speed_seg_02",
 						"id": "am000039",
 						"type": "label",
 						"visible": false,
@@ -43314,7 +43314,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_03",
+						"name": "dashboard_Amber_speed_seg_03",
 						"id": "am000064",
 						"type": "label",
 						"visible": false,
@@ -43417,7 +43417,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_04",
+						"name": "dashboard_Amber_speed_seg_04",
 						"id": "am000061",
 						"type": "label",
 						"visible": false,
@@ -43520,7 +43520,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_05",
+						"name": "dashboard_Amber_speed_seg_05",
 						"id": "am000041",
 						"type": "label",
 						"visible": false,
@@ -43623,7 +43623,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_06",
+						"name": "dashboard_Amber_speed_seg_06",
 						"id": "am000019",
 						"type": "label",
 						"visible": false,
@@ -43726,7 +43726,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_07",
+						"name": "dashboard_Amber_speed_seg_07",
 						"id": "am000031",
 						"type": "label",
 						"visible": false,
@@ -43829,7 +43829,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_08",
+						"name": "dashboard_Amber_speed_seg_08",
 						"id": "am000065",
 						"type": "label",
 						"visible": false,
@@ -43932,7 +43932,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_09",
+						"name": "dashboard_Amber_speed_seg_09",
 						"id": "am000084",
 						"type": "label",
 						"visible": false,
@@ -44035,7 +44035,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_10",
+						"name": "dashboard_Amber_speed_seg_10",
 						"id": "am000007",
 						"type": "label",
 						"visible": false,
@@ -44138,7 +44138,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_seg_11",
+						"name": "dashboard_Amber_speed_seg_11",
 						"id": "am000071",
 						"type": "label",
 						"visible": false,
@@ -44241,7 +44241,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_min",
+						"name": "dashboard_Amber_speed_min",
 						"id": "am000021",
 						"type": "label",
 						"visible": false,
@@ -44344,7 +44344,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_speed_max",
+						"name": "dashboard_Amber_speed_max",
 						"id": "am000080",
 						"type": "label",
 						"visible": false,
@@ -44447,7 +44447,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_sep",
+						"name": "dashboard_Amber_power_sep",
 						"id": "am000089",
 						"type": "label",
 						"visible": true,
@@ -44550,7 +44550,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_label",
+						"name": "dashboard_Amber_power_label",
 						"id": "am000073",
 						"type": "label",
 						"visible": true,
@@ -44653,23 +44653,23 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_value",
+						"name": "dashboard_Amber_power_value",
 						"id": "am000029",
 						"type": "label",
 						"visible": true,
 						"flag": [],
 						"pos": [
-							630,
+							620,
 							75
 						],
 						"size": [
-							112,
+							126,
 							70
 						],
 						"default_style": false,
 						"attribute_type": "",
 						"custom_attribute": [],
-						"text": "2.8",
+						"text": "-2.8",
 						"long_mode": "LV_LABEL_LONG_WRAP",
 						"is_static": false,
 						"style": [
@@ -44756,7 +44756,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_unit",
+						"name": "dashboard_Amber_power_unit",
 						"id": "am000015",
 						"type": "label",
 						"visible": true,
@@ -44859,7 +44859,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_Current_text",
+						"name": "dashboard_Amber_Current_text",
 						"id": "am000063",
 						"type": "label",
 						"visible": true,
@@ -44962,7 +44962,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_00",
+						"name": "dashboard_Amber_power_seg_00",
 						"id": "am000052",
 						"type": "label",
 						"visible": true,
@@ -45065,7 +45065,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_01",
+						"name": "dashboard_Amber_power_seg_01",
 						"id": "am000051",
 						"type": "label",
 						"visible": true,
@@ -45168,7 +45168,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_02",
+						"name": "dashboard_Amber_power_seg_02",
 						"id": "am000002",
 						"type": "label",
 						"visible": true,
@@ -45271,7 +45271,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_03",
+						"name": "dashboard_Amber_power_seg_03",
 						"id": "am000077",
 						"type": "label",
 						"visible": true,
@@ -45374,7 +45374,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_04",
+						"name": "dashboard_Amber_power_seg_04",
 						"id": "am000026",
 						"type": "label",
 						"visible": true,
@@ -45477,7 +45477,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_05",
+						"name": "dashboard_Amber_power_seg_05",
 						"id": "am000025",
 						"type": "label",
 						"visible": true,
@@ -45580,7 +45580,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_06",
+						"name": "dashboard_Amber_power_seg_06",
 						"id": "am000062",
 						"type": "label",
 						"visible": true,
@@ -45683,7 +45683,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_07",
+						"name": "dashboard_Amber_power_seg_07",
 						"id": "am000095",
 						"type": "label",
 						"visible": true,
@@ -45786,7 +45786,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_08",
+						"name": "dashboard_Amber_power_seg_08",
 						"id": "am000085",
 						"type": "label",
 						"visible": true,
@@ -45889,7 +45889,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_09",
+						"name": "dashboard_Amber_power_seg_09",
 						"id": "am000023",
 						"type": "label",
 						"visible": true,
@@ -45992,7 +45992,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_10",
+						"name": "dashboard_Amber_power_seg_10",
 						"id": "am000011",
 						"type": "label",
 						"visible": true,
@@ -46095,7 +46095,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_11",
+						"name": "dashboard_Amber_power_seg_11",
 						"id": "am000074",
 						"type": "label",
 						"visible": true,
@@ -46198,7 +46198,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_12",
+						"name": "dashboard_Amber_power_seg_12",
 						"id": "am000079",
 						"type": "label",
 						"visible": true,
@@ -46301,7 +46301,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_seg_13",
+						"name": "dashboard_Amber_power_seg_13",
 						"id": "am000014",
 						"type": "label",
 						"visible": true,
@@ -46404,7 +46404,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_max_label",
+						"name": "dashboard_Amber_power_max_label",
 						"id": "am000038",
 						"type": "label",
 						"visible": true,
@@ -46507,7 +46507,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_power_max_val",
+						"name": "dashboard_Amber_power_max_val",
 						"id": "am000067",
 						"type": "label",
 						"visible": true,
@@ -46610,7 +46610,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_bottom_bg",
+						"name": "dashboard_Amber_bottom_bg",
 						"id": "am000008",
 						"type": "label",
 						"visible": true,
@@ -46713,7 +46713,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_bottom_top_sep",
+						"name": "dashboard_Amber_bottom_top_sep",
 						"id": "am000055",
 						"type": "label",
 						"visible": true,
@@ -46816,7 +46816,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_bottom_col_sep_0",
+						"name": "dashboard_Amber_bottom_col_sep_0",
 						"id": "am000087",
 						"type": "label",
 						"visible": true,
@@ -46919,7 +46919,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_bottom_col_sep_1",
+						"name": "dashboard_Amber_bottom_col_sep_1",
 						"id": "am000058",
 						"type": "label",
 						"visible": true,
@@ -47022,7 +47022,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_bottom_col_sep_2",
+						"name": "dashboard_Amber_bottom_col_sep_2",
 						"id": "am000036",
 						"type": "label",
 						"visible": true,
@@ -47125,7 +47125,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_bottom_col_sep_3",
+						"name": "dashboard_Amber_bottom_col_sep_3",
 						"id": "am000027",
 						"type": "label",
 						"visible": true,
@@ -47228,7 +47228,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_trip_label",
+						"name": "dashboard_Amber_col_trip_label",
 						"id": "am000020",
 						"type": "label",
 						"visible": true,
@@ -47331,7 +47331,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_TRIP_text",
+						"name": "dashboard_Amber_TRIP_text",
 						"id": "am000032",
 						"type": "label",
 						"visible": true,
@@ -47434,7 +47434,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_trip_unit",
+						"name": "dashboard_Amber_col_trip_unit",
 						"id": "am000043",
 						"type": "label",
 						"visible": true,
@@ -47537,7 +47537,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_odo_label",
+						"name": "dashboard_Amber_col_odo_label",
 						"id": "am000044",
 						"type": "label",
 						"visible": true,
@@ -47640,7 +47640,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_odo_text",
+						"name": "dashboard_Amber_odo_text",
 						"id": "am000070",
 						"type": "label",
 						"visible": true,
@@ -47743,7 +47743,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_odo_unit",
+						"name": "dashboard_Amber_col_odo_unit",
 						"id": "am000005",
 						"type": "label",
 						"visible": true,
@@ -47846,7 +47846,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_mtmp_label",
+						"name": "dashboard_Amber_col_mtmp_label",
 						"id": "am000017",
 						"type": "label",
 						"visible": true,
@@ -47949,7 +47949,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_temp_mot_text",
+						"name": "dashboard_Amber_temp_mot_text",
 						"id": "am000075",
 						"type": "label",
 						"visible": true,
@@ -48052,7 +48052,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_mtmp_unit",
+						"name": "dashboard_Amber_col_mtmp_unit",
 						"id": "am000042",
 						"type": "label",
 						"visible": true,
@@ -48155,7 +48155,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_ctmp_label",
+						"name": "dashboard_Amber_col_ctmp_label",
 						"id": "am000047",
 						"type": "label",
 						"visible": true,
@@ -48258,7 +48258,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_temp_esc_text",
+						"name": "dashboard_Amber_temp_esc_text",
 						"id": "am000046",
 						"type": "label",
 						"visible": true,
@@ -48361,7 +48361,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_ctmp_unit",
+						"name": "dashboard_Amber_col_ctmp_unit",
 						"id": "am000076",
 						"type": "label",
 						"visible": true,
@@ -48464,7 +48464,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_avg_label",
+						"name": "dashboard_Amber_col_avg_label",
 						"id": "am000033",
 						"type": "label",
 						"visible": false,
@@ -48567,7 +48567,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_avg_value",
+						"name": "dashboard_Amber_col_avg_value",
 						"id": "am000009",
 						"type": "label",
 						"visible": false,
@@ -48670,7 +48670,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_avg_unit",
+						"name": "dashboard_Amber_col_avg_unit",
 						"id": "am000093",
 						"type": "label",
 						"visible": false,
@@ -48773,7 +48773,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_cruise_control_img",
+						"name": "dashboard_Amber_cruise_control_img",
 						"id": "am000072",
 						"type": "img",
 						"visible": false,
@@ -48810,7 +48810,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_esc_not_connected_text",
+						"name": "dashboard_Amber_esc_not_connected_text",
 						"id": "am000094",
 						"type": "label",
 						"visible": false,
@@ -48819,7 +48819,7 @@
 						],
 						"pos": [
 							280,
-							5
+							9
 						],
 						"size": [
 							240,
@@ -48845,7 +48845,7 @@
 								"radius": 4,
 								"text_color": "#FF3B2F",
 								"text_opa": 255,
-								"font": 22,
+								"font": 12,
 								"text_align": "LV_TEXT_ALIGN_CENTER",
 								"font_family": "DSEG14Classic_Regular",
 								"letter_space": 2,
@@ -48915,7 +48915,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_Ah_text",
+						"name": "dashboard_Amber_Ah_text",
 						"id": "am000056",
 						"type": "label",
 						"visible": true,
@@ -49018,7 +49018,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_Speed_cc_text",
+						"name": "dashboard_Amber_Speed_cc_text",
 						"id": "am000022",
 						"type": "label",
 						"visible": false,
@@ -49123,7 +49123,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_Settings_text",
+						"name": "dashboard_Amber_Settings_text",
 						"id": "am000037",
 						"type": "label",
 						"visible": true,
@@ -49228,7 +49228,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_song_title_label",
+						"name": "dashboard_Amber_song_title_label",
 						"id": "am000018",
 						"type": "label",
 						"visible": false,
@@ -49333,7 +49333,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_v_label",
+						"name": "dashboard_Amber_col_v_label",
 						"id": "am000004",
 						"type": "label",
 						"visible": true,
@@ -49436,7 +49436,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_Voltage_text",
+						"name": "dashboard_Amber_Voltage_text",
 						"id": "am000012",
 						"type": "label",
 						"visible": true,
@@ -49539,7 +49539,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_col_voltage_label",
+						"name": "dashboard_Amber_col_voltage_label",
 						"id": "am000024",
 						"type": "label",
 						"visible": true,
@@ -49642,7 +49642,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_cur_time_label",
+						"name": "dashboard_Amber_cur_time_label",
 						"id": "am000082",
 						"type": "label",
 						"visible": true,
@@ -49745,7 +49745,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_brightness_slider",
+						"name": "dashboard_Amber_brightness_slider",
 						"id": "am000053",
 						"type": "slider",
 						"visible": false,
@@ -49938,7 +49938,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_music_info",
+						"name": "dashboard_Amber_music_info",
 						"id": "am000045",
 						"type": "tileview",
 						"visible": false,
@@ -49997,7 +49997,7 @@
 						]
 					},
 					{
-						"name": "dashboard_amber_statistics_button",
+						"name": "dashboard_Amber_statistics_button",
 						"id": "am000049",
 						"type": "label",
 						"visible": true,

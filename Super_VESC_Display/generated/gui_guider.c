@@ -75,17 +75,17 @@ void ui_animation(void * var, int32_t duration, int32_t delay, int32_t start_val
 void init_scr_del_flag(lv_ui *ui)
 {
 
-    ui->dashboard_del = true;
+    ui->dashboard_Classic_del = true;
     ui->settings_del = true;
-    ui->dashboard_amber_del = true;
+    ui->dashboard_Amber_del = true;
 }
 
 void setup_ui(lv_ui *ui)
 {
     init_scr_del_flag(ui);
     init_keyboard(ui);
-    setup_scr_dashboard(ui);
-    lv_scr_load(ui->dashboard);
+    setup_scr_dashboard_Classic(ui);
+    lv_scr_load(ui->dashboard_Classic);
 }
 
 void init_keyboard(lv_ui *ui)

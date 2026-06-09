@@ -425,7 +425,7 @@ def build_legacy_stubs(bak_path: str, used_ids: set[str]) -> list[dict]:
         return []
     with open(bak_path, "r", encoding="utf-8") as f:
         bak = json.load(f)
-    bak_dash = next((s for s in bak.get("FrontJson", []) if s.get("name") == "dashboard"), None)
+    bak_dash = next((s for s in bak.get("FrontJson", []) if s.get("name") == "dashboard_Classic"), None)
     if bak_dash is None:
         print("[warn] no dashboard in .bak", file=sys.stderr)
         return []
@@ -486,17 +486,17 @@ def main() -> int:
 
     dashboard = None
     for s in proj.get("FrontJson", []):
-        if s.get("name") == "dashboard":
+        if s.get("name") == "dashboard_Classic":
             dashboard = s
             break
     if dashboard is None:
-        print("[err] 'dashboard' screen not found in FrontJson", file=sys.stderr)
+        print("[err] 'dashboard_Classic' screen not found in FrontJson", file=sys.stderr)
         return 1
 
     # Replace the entire screen contents. Preserve the screen meta-fields.
     new_widgets = build_cockpit_widgets(used_ids)
     legacy_stubs = build_legacy_stubs(BACKUP, used_ids)
-    # GUI Guider reverses the order when exporting setup_scr_dashboard.c
+    # GUI Guider reverses the order when exporting setup_scr_dashboard_Classic.c
     # (first in JSON list -> last in code -> top z-layer). To keep
     # backgrounds/dividers below the digits we reverse the final list — the
     # script writes a visually natural order (bg first, then text), and the
@@ -529,7 +529,7 @@ def main() -> int:
     print("next, in GUI Guider:")
     print("  1. File -> Open Project -> Super_VESC_Display.guiguider")
     print("  2. dashboard screen now shows the Cockpit; tweak visually if needed")
-    print("  3. Generate Code -> rebuilds generated/setup_scr_dashboard.c")
+    print("  3. Generate Code -> rebuilds generated/setup_scr_dashboard_Classic.c")
     return 0
 
 

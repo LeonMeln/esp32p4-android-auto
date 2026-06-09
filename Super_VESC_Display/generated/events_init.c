@@ -17,7 +17,7 @@
 
 #include "custom.h"
 
-static void dashboard_event_handler (lv_event_t *e)
+static void dashboard_Classic_event_handler (lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     switch (code) {
@@ -31,7 +31,7 @@ static void dashboard_event_handler (lv_event_t *e)
     }
 }
 
-static void dashboard_status_vesc_event_handler (lv_event_t *e)
+static void dashboard_Classic_status_vesc_event_handler (lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     switch (code) {
@@ -46,13 +46,13 @@ static void dashboard_status_vesc_event_handler (lv_event_t *e)
     }
 }
 
-static void dashboard_Settings_text_event_handler (lv_event_t *e)
+static void dashboard_Classic_Settings_text_event_handler (lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     switch (code) {
     case LV_EVENT_CLICKED:
     {
-        ui_load_scr_animation(&guider_ui, &guider_ui.settings, guider_ui.settings_del, &guider_ui.dashboard_del, setup_scr_settings, LV_SCR_LOAD_ANIM_NONE, 200, 200, false, false);
+        ui_load_scr_animation(&guider_ui, &guider_ui.settings, guider_ui.settings_del, &guider_ui.dashboard_Classic_del, setup_scr_settings, LV_SCR_LOAD_ANIM_NONE, 200, 200, false, false);
         break;
     }
     default:
@@ -60,7 +60,7 @@ static void dashboard_Settings_text_event_handler (lv_event_t *e)
     }
 }
 
-static void dashboard_brightness_slider_event_handler (lv_event_t *e)
+static void dashboard_Classic_brightness_slider_event_handler (lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     switch (code) {
@@ -75,7 +75,7 @@ static void dashboard_brightness_slider_event_handler (lv_event_t *e)
     }
 }
 
-static void dashboard_statistics_button_event_handler (lv_event_t *e)
+static void dashboard_Classic_statistics_button_event_handler (lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     switch (code) {
@@ -90,13 +90,13 @@ static void dashboard_statistics_button_event_handler (lv_event_t *e)
     }
 }
 
-void events_init_dashboard (lv_ui *ui)
+void events_init_dashboard_Classic (lv_ui *ui)
 {
-    lv_obj_add_event_cb(ui->dashboard, dashboard_event_handler, LV_EVENT_ALL, ui);
-    lv_obj_add_event_cb(ui->dashboard_status_vesc, dashboard_status_vesc_event_handler, LV_EVENT_ALL, ui);
-    lv_obj_add_event_cb(ui->dashboard_Settings_text, dashboard_Settings_text_event_handler, LV_EVENT_ALL, ui);
-    lv_obj_add_event_cb(ui->dashboard_brightness_slider, dashboard_brightness_slider_event_handler, LV_EVENT_ALL, ui);
-    lv_obj_add_event_cb(ui->dashboard_statistics_button, dashboard_statistics_button_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->dashboard_Classic, dashboard_Classic_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->dashboard_Classic_status_vesc, dashboard_Classic_status_vesc_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->dashboard_Classic_Settings_text, dashboard_Classic_Settings_text_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->dashboard_Classic_brightness_slider, dashboard_Classic_brightness_slider_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->dashboard_Classic_statistics_button, dashboard_Classic_statistics_button_event_handler, LV_EVENT_ALL, ui);
 }
 
 static void settings_event_handler (lv_event_t *e)
@@ -119,7 +119,7 @@ static void settings_exit_button_event_handler (lv_event_t *e)
     switch (code) {
     case LV_EVENT_CLICKED:
     {
-        ui_load_scr_animation(&guider_ui, &guider_ui.dashboard, guider_ui.dashboard_del, &guider_ui.settings_del, setup_scr_dashboard, LV_SCR_LOAD_ANIM_NONE, 200, 200, false, false);
+        ui_load_scr_animation(&guider_ui, &guider_ui.dashboard_Classic, guider_ui.dashboard_Classic_del, &guider_ui.settings_del, setup_scr_dashboard_Classic, LV_SCR_LOAD_ANIM_NONE, 200, 200, false, false);
         break;
     }
     default:

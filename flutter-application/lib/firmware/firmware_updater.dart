@@ -9,18 +9,39 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:flutter/services.dart' show rootBundle;
+
+import '../ble/ble_service.dart';
 
 enum UpdatePhase { idle, uploading, verifying, done, error }
 
+/// How the firmware image reaches the head unit.
+enum OtaTransport {
+  /// HTTP POST over WiFi to the head unit's SoftAP — fast, but the phone must
+  /// be on the head unit's network.
+  wifi,
+
+  /// Streamed straight over the existing BLE link — slower, but needs no WiFi.
+  ble,
+}
+
 class UpdateState {
-  const UpdateState(this.phase, {this.progress = 0, this.message});
+  const UpdateState(this.phase, {this.progress = 0, this.messageKey, this.args});
   final UpdatePhase phase;
 
   /// 0..1 upload fraction, meaningful only while [phase] == uploading.
   final double progress;
-  final String? message;
+
+  /// i18n key for the status/error line (null = no line). The UI localises it
+  /// via `t()` — this layer has no BuildContext, so it never holds final text.
+  final String? messageKey;
+
+  /// Substitutions for {placeholder}s in the localised string (e.g. {size},
+  /// {host}, {err}).
+  final Map<String, String>? args;
 }
 
 class FirmwareUpdater {
@@ -67,8 +88,10 @@ class FirmwareUpdater {
   final _ctrl = StreamController<UpdateState>.broadcast();
   Stream<UpdateState> get state => _ctrl.stream;
 
-  void _emit(UpdatePhase p, {double progress = 0, String? message}) =>
-      _ctrl.add(UpdateState(p, progress: progress, message: message));
+  void _emit(UpdatePhase p,
+          {double progress = 0, String? messageKey, Map<String, String>? args}) =>
+      _ctrl.add(UpdateState(p,
+          progress: progress, messageKey: messageKey, args: args));
 
   /// POST the bundled image to http://[host]/ota. [model] selects which board's
   /// image to send (from the head unit's reported board model); null falls back
@@ -79,16 +102,52 @@ class FirmwareUpdater {
     try {
       final bytes = (await rootBundle.load(_assetFor(model))).buffer.asUint8List();
       _emit(UpdatePhase.uploading, progress: 0,
-          message: 'Загрузка прошивки (${(bytes.length / 1024).round()} КБ)…');
+          messageKey: 'fw.ota.uploading.wifi',
+          args: {'size': (bytes.length / 1024).round().toString()});
       final ok = await _post(url, bytes);
       if (!ok) {
-        _emit(UpdatePhase.error, message: 'Устройство отклонило прошивку');
+        _emit(UpdatePhase.error, messageKey: 'fw.ota.rejected');
         return false;
       }
-      _emit(UpdatePhase.done, message: 'Прошивка принята — устройство перезагружается');
+      _emit(UpdatePhase.done, messageKey: 'fw.done');
       return true;
     } catch (e) {
-      _emit(UpdatePhase.error, message: 'Не удалось подключиться к $host: $e');
+      _emit(UpdatePhase.error,
+          messageKey: 'fw.ota.connfail', args: {'host': host, 'err': '$e'});
+      return false;
+    }
+  }
+
+  /// Flash the bundled image over the BLE link (no WiFi). [model] selects the
+  /// board image; null falls back to the default board. Computes the image's
+  /// SHA-256 so the head unit can verify the transfer, then streams it via
+  /// [BleService.bleOta]. Never throws — failures surface through [state] and
+  /// the bool result.
+  Future<bool> runBle({String? model}) async {
+    try {
+      final bytes = (await rootBundle.load(_assetFor(model))).buffer.asUint8List();
+      _emit(UpdatePhase.uploading, progress: 0,
+          messageKey: 'fw.ota.uploading.ble',
+          args: {'size': (bytes.length / 1024).round().toString()});
+      // Hashing ~4 MB is quick but blocks the isolate; nudge it off the
+      // current microtask so the initial frame paints first.
+      final digest = await Future(
+          () => Uint8List.fromList(sha256.convert(bytes).bytes));
+      final res = await BleService.instance.bleOta(
+        bytes,
+        digest,
+        onUpload: (f) => _emit(UpdatePhase.uploading, progress: f),
+        onVerify: () => _emit(UpdatePhase.verifying,
+            progress: 1, messageKey: 'fw.ota.verifying.device'),
+      );
+      if (!res.ok) {
+        _emit(UpdatePhase.error, messageKey: res.errorKey ?? 'fw.ota.blefail');
+        return false;
+      }
+      _emit(UpdatePhase.done, messageKey: 'fw.done');
+      return true;
+    } catch (e) {
+      _emit(UpdatePhase.error, messageKey: 'fw.ota.bleerror', args: {'err': '$e'});
       return false;
     }
   }
@@ -111,7 +170,7 @@ class FirmwareUpdater {
         _emit(UpdatePhase.uploading, progress: sent / bytes.length);
       }
       // Device verifies + commits after the body lands.
-      _emit(UpdatePhase.verifying, progress: 1, message: 'Проверка образа…');
+      _emit(UpdatePhase.verifying, progress: 1, messageKey: 'fw.ota.verifying');
       final resp = await req.close().timeout(const Duration(seconds: 60));
       final body = await resp.transform(utf8.decoder).join();
       return resp.statusCode == 200 &&

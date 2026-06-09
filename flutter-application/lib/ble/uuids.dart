@@ -17,4 +17,15 @@ class NotifBridgeUuids {
   /// to `http://<ip>:<port>/ota`. Optional — absent on firmware without the
   /// OTA-from-app feature, in which case the app hides the update action.
   static const charOtaInfo = '7b4e4f00-3f8e-4d2a-9d5c-2c9f1a6e0006';
+
+  /// WRITE | NOTIFY. BLE OTA control channel: the phone writes BEGIN/END/ABORT
+  /// opcodes, the head unit notifies status (READY/PROGRESS/DONE/ERROR). Lets
+  /// the app flash firmware straight over the BLE link with no WiFi/SoftAP
+  /// hop. Optional — absent on firmware without BLE OTA, in which case the app
+  /// offers only the WiFi path. See lib/firmware/ble_ota.dart.
+  static const charOtaCtrl = '7b4e4f00-3f8e-4d2a-9d5c-2c9f1a6e0007';
+
+  /// WRITE_NO_RSP. BLE OTA data channel: raw firmware bytes streamed
+  /// sequentially after the BEGIN/READY handshake on [charOtaCtrl].
+  static const charOtaData = '7b4e4f00-3f8e-4d2a-9d5c-2c9f1a6e0008';
 }

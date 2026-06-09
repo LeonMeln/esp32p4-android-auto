@@ -18,6 +18,7 @@ idf_component_register(
         "ble_host.c"
         "ble_nus.c"
         "notif_bridge.c"
+        "ble_ota.c"
         "notif_toast.c"
         "music_info_view.c"
         "fonts/aabridge_font_24.c"

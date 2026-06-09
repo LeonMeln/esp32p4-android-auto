@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Adds a second dashboard screen — `dashboard_amber` — to
-Super_VESC_Display.guiguider, visible alongside `dashboard` / `settings` in
+Adds a second dashboard screen — `dashboard_Amber` — to
+Super_VESC_Display.guiguider, visible alongside `dashboard_Classic` / `settings` in
 GUI Guider's screen tree.
 
 It is the "Cyberpunk Amber" reskin described in
 `design_handoff_vesc_dashboard/` (Variant A — Classic Reskin): the exact same
-information layout as the existing green `dashboard`, recoloured to the amber
+information layout as the existing green `dashboard_Classic`, recoloured to the amber
 palette from the handoff and frozen with the handoff's sample telemetry so the
 screen reads as a finished mock-up in the editor.
 
@@ -18,7 +18,7 @@ GUI Guider keeps two parallel representations of every screen:
                              for what the editor renders.
   * Application.screen[]   — the code-gen model (`widgets`, pos/size, names
                              prefixed with the screen name).
-The two share the SAME widget `id` per widget. We clone the `dashboard` screen
+The two share the SAME widget `id` per widget. We clone the `dashboard_Classic` screen
 in BOTH, give every cloned widget a fresh globally-unique id (the same new id
 in both copies so they stay paired), recolour, bake in sample values, and
 append the new screen to both arrays.
@@ -31,7 +31,7 @@ Events are stripped from the clone (it is a static preview, so no navigation /
 custom-code wiring) which also drops the embedded `_target` screen copy that
 would otherwise tangle id remapping.
 
-Idempotent: a second run removes any previous `dashboard_amber` first.
+Idempotent: a second run removes any previous `dashboard_Amber` first.
 
     cd Super_VESC_Display
     python3 tools/build_amber_dashboard.py
@@ -51,8 +51,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT = os.path.join(ROOT, "Super_VESC_Display.guiguider")
 BACKUP = PROJECT + ".amber.bak"
 
-SRC_SCREEN = "dashboard"
-NEW_SCREEN = "dashboard_amber"
+SRC_SCREEN = "dashboard_Classic"
+NEW_SCREEN = "dashboard_Amber"
 
 # ---------------------------------------------------------------------------
 # Amber palette — old (green) colour -> handoff amber colour.
@@ -362,7 +362,7 @@ def main() -> int:
     print(f"  3. Font Manager: confirm '{DSEG7_FAMILY}' is picked up (ttf in import/font/);")
     print( "     it generates the DSEG7 sizes used (24/32/40/64/200) on Generate Code")
     print(f"  4. In the running UI: tap 'MODE' to flip green <-> amber")
-    print( "  5. Generate Code -> emits generated/setup_scr_dashboard_amber.c")
+    print( "  5. Generate Code -> emits generated/setup_scr_dashboard_Amber.c")
     return 0
 
 

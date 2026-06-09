@@ -12,7 +12,7 @@
     The data pump (main/vesc_ui_updater.c) and the demo loop keep calling the
     global update_*() functions; those are dispatchers (see dashboard_theme.c)
     that forward to the active theme's ops. Switching theme rebuilds the target
-    screen, repoints the dashboard slot (guider_ui.dashboard) and frees the
+    screen, repoints the dashboard slot (guider_ui.dashboard_Classic) and frees the
     previous screen — all on the LVGL thread.
 
     Themes are registered once at boot (custom_init_once). The active index is

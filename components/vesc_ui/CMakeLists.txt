@@ -63,6 +63,19 @@ set(COCKPIT_FONT_SRCS "")
 foreach(_cf ${COCKPIT_FONT_NAMES})
     list(APPEND COCKPIT_FONT_SRCS "${COCKPIT_FONT_DIR}/${_cf}.c")
 endforeach()
+
+# ── Auto-registered dashboard themes ──
+# scripts/gen_dashboard_themes.py scans generated/gui_guider.h for screens
+# named dashboard_* (a dashboard_ prefix + suffix) and emits a registrar — one
+# generic, convention-bound theme each (see custom/theme_generic.{h,c}) — into
+# the build dir. So a new GUI Guider dashboard screen shows up in the Settings
+# theme dropdown with live VESC data, no hand-written C. The hand-written
+# themes (cockpit = base "dashboard", "dashboard_amber") are skipped. The
+# producing add_custom_command lives after idf_component_register (below).
+set(SVD_GENTHEME_TOOL "${SVD_ROOT}/../scripts/gen_dashboard_themes.py")
+set(SVD_GENTHEME_SRC  "${CMAKE_CURRENT_BINARY_DIR}/dashboard_themes_auto.c")
+# NOTE: set_source_files_properties(GENERATED) for this lives after
+# idf_component_register — it isn't scriptable in the requirements pass.
 # The add_custom_command that produces these lives AFTER idf_component_register
 # below — add_custom_command is not available in the script-mode pass ESP-IDF
 # uses to extract component requirements, and everything before the register
@@ -75,6 +88,7 @@ idf_component_register(
         ${COCKPIT_FONT_SRCS}
         ${SVD_IMAGES}
         ${SVD_CUSTOM}
+        ${SVD_GENTHEME_SRC}
         "vesc_ui.c"
     INCLUDE_DIRS
         "include"
@@ -106,6 +120,18 @@ add_custom_command(
             --fallback-from "${SVD_ROOT}/generated/guider_fonts"
     DEPENDS "${_antonio_ttf}" "${_regen_tool}"
     COMMENT "Subsetting cockpit Antonio fonts -> ${COCKPIT_FONT_DIR}"
+    VERBATIM)
+
+# Discover dashboard_* screens and emit their generic-theme registrar (see the
+# comment block by SVD_GENTHEME_SRC above). Reruns when gui_guider.h changes.
+set_source_files_properties(${SVD_GENTHEME_SRC} PROPERTIES GENERATED TRUE)
+add_custom_command(
+    OUTPUT ${SVD_GENTHEME_SRC}
+    COMMAND python3 "${SVD_GENTHEME_TOOL}"
+            --header "${SVD_ROOT}/generated/gui_guider.h"
+            --out "${SVD_GENTHEME_SRC}"
+    DEPENDS "${SVD_ROOT}/generated/gui_guider.h" "${SVD_GENTHEME_TOOL}"
+    COMMENT "Discovering dashboard_* screens -> ${SVD_GENTHEME_SRC}"
     VERBATIM)
 
 # LV_REALDEVICE flips settings_wrapper.c from in-RAM SIMULATOR_MODE to the

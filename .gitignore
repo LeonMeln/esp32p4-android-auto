@@ -32,6 +32,11 @@ tools/bt_agent/.cache/
 # Not committed — see CLAUDE.md for the URLs.
 research/_sources/
 
+# Python bytecode cache from the build/authoring tools under
+# Super_VESC_Display/tools/ and scripts/.
+__pycache__/
+*.pyc
+
 # Local bench WiFi creds — present only on dev machines.
 # When the file exists, wifi_manager forces STA mode and joins this network
 # instead of running its own SoftAP. Also catches the `.disabled` rename we

@@ -19,7 +19,9 @@ extern "C" {
  *   ST   CHR: 7B4E4F00-...-0004  READ          (caps blob; reserved)
  *   TIME CHR: 7B4E4F00-...-0005  WRITE_NO_RSP  (phone → P4, [hour, minute])
  *   OTA  CHR: 7B4E4F00-...-0006  READ          (SoftAP creds + OTA endpoint
- *                                              + fw version for app-side OTA) */
+ *                                              + fw version for WiFi OTA)
+ *   OTAC CHR: 7B4E4F00-...-0007  WRITE|NOTIFY  (BLE OTA control — see ble_ota.h)
+ *   OTAD CHR: 7B4E4F00-...-0008  WRITE_NO_RSP  (BLE OTA firmware data) */
 
 void notif_bridge_init(void);
 

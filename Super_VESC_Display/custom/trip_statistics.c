@@ -468,7 +468,7 @@ static void back_cb(lv_event_t *e)
         show_list_view();   /* detail → list */
         return;
     }
-    lv_scr_load_anim(guider_ui.dashboard, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
+    lv_scr_load_anim(guider_ui.dashboard_Classic, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
 }
 
 static void screen_unloaded_cb(lv_event_t *e)

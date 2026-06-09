@@ -29,6 +29,14 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
   /// can override it with the picker.
   String? _selectedModel;
   String? _bundled;
+
+  /// Whether the head unit can be flashed over BLE (firmware exposes the OTA
+  /// data characteristics). Drives whether the Bluetooth method is offered.
+  bool _bleOtaSupported = false;
+
+  /// Chosen update transport. Defaults to BLE when the head unit supports it
+  /// (no WiFi juggling), else WiFi.
+  OtaTransport _transport = OtaTransport.wifi;
   bool _loading = true;
   bool _busy = false;
   UpdateState _state = const UpdateState(UpdatePhase.idle);
@@ -58,6 +66,7 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
         : null;
     if (!mounted) return;
     final detected = info?.model;
+    final bleOta = BleService.instance.supportsBleOta;
     setState(() {
       _bundled = bundled;
       _deviceVersion = info?.version;
@@ -65,20 +74,25 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
       _selectedModel = FirmwareUpdater.boards.contains(detected)
           ? detected
           : FirmwareUpdater.defaultModel;
+      _bleOtaSupported = bleOta;
+      _transport = bleOta ? OtaTransport.ble : OtaTransport.wifi;
       _loading = false;
     });
   }
 
   Future<void> _confirmAndFlash() async {
+    final viaBle = _transport == OtaTransport.ble;
     final host = _hostCtrl.text.trim();
-    if (host.isEmpty) return;
+    if (!viaBle && host.isEmpty) return;
     final boardLine = '${t(context, 'fw.select')}: '
         '${FirmwareUpdater.displayName(_selectedModel)}';
+    final methodLine = '${t(context, 'fw.method')}: '
+        '${t(context, viaBle ? 'fw.method.ble' : 'fw.method.wifi')}';
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(t(ctx, 'fw.warn.title')),
-        content: Text('${t(ctx, 'fw.warn.body')}\n\n$boardLine'),
+        content: Text('${t(ctx, 'fw.warn.body')}\n\n$methodLine\n$boardLine'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -93,7 +107,11 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
     );
     if (go != true) return;
     setState(() => _busy = true);
-    await _updater.run(host: host, model: _selectedModel);
+    if (viaBle) {
+      await _updater.runBle(model: _selectedModel);
+    } else {
+      await _updater.run(host: host, model: _selectedModel);
+    }
     if (mounted) setState(() => _busy = false);
   }
 
@@ -195,14 +213,29 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
           ),
         ],
         const SizedBox(height: 16),
-        TextField(
-          controller: _hostCtrl,
-          enabled: !_busy,
-          decoration: InputDecoration(
-            labelText: t(context, 'fw.host'),
-            border: const OutlineInputBorder(),
-            prefixIcon: const Icon(Icons.lan),
-          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(t(context, 'fw.method'),
+              style: Theme.of(context).textTheme.labelLarge),
+        ),
+        const SizedBox(height: 6),
+        SegmentedButton<OtaTransport>(
+          segments: [
+            ButtonSegment(
+              value: OtaTransport.ble,
+              icon: const Icon(Icons.bluetooth),
+              label: Text(t(context, 'fw.method.ble')),
+              enabled: _bleOtaSupported,
+            ),
+            ButtonSegment(
+              value: OtaTransport.wifi,
+              icon: const Icon(Icons.wifi),
+              label: Text(t(context, 'fw.method.wifi')),
+            ),
+          ],
+          selected: {_transport},
+          onSelectionChanged:
+              _busy ? null : (s) => setState(() => _transport = s.first),
         ),
         const SizedBox(height: 6),
         Row(
@@ -210,11 +243,28 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
             Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
             const SizedBox(width: 6),
             Expanded(
-              child: Text(t(context, 'fw.host.note'),
+              child: Text(
+                  _transport == OtaTransport.ble
+                      ? t(context, 'fw.method.ble.note')
+                      : (_bleOtaSupported
+                          ? t(context, 'fw.host.note')
+                          : t(context, 'fw.method.ble.unsupported')),
                   style: TextStyle(color: Colors.grey[600], fontSize: 13)),
             ),
           ],
         ),
+        if (_transport == OtaTransport.wifi) ...[
+          const SizedBox(height: 16),
+          TextField(
+            controller: _hostCtrl,
+            enabled: !_busy,
+            decoration: InputDecoration(
+              labelText: t(context, 'fw.host'),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.lan),
+            ),
+          ),
+        ],
         if (upToDate) ...[
           const SizedBox(height: 12),
           Text(t(context, 'fw.uptodate'),
@@ -252,9 +302,9 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
           Text('${(s.progress * 100).round()}%', textAlign: TextAlign.center),
           const SizedBox(height: 8),
         ],
-        if (s.message != null)
+        if (_localizeMsg(context, s) case final msg?)
           Text(
-            isDone ? t(context, 'fw.done') : s.message!,
+            msg,
             textAlign: TextAlign.center,
             style: TextStyle(
               color: isError
@@ -266,5 +316,16 @@ class _FirmwareUpdateScreenState extends State<FirmwareUpdateScreen> {
           ),
       ],
     );
+  }
+
+  /// Localise an [UpdateState]'s message key and fill its {placeholder}s. The
+  /// updater layers emit i18n keys (no BuildContext there); the text is built
+  /// here so it honours the selected app language.
+  String? _localizeMsg(BuildContext context, UpdateState s) {
+    final key = s.messageKey;
+    if (key == null) return null;
+    var text = t(context, key);
+    s.args?.forEach((k, v) => text = text.replaceAll('{$k}', v));
+    return text;
   }
 }

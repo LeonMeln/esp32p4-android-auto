@@ -40,7 +40,7 @@ const dashboard_theme_t *dashboard_theme_get(int idx)
 
 int dashboard_theme_active_index(void) { return s_active; }
 
-lv_obj_t *dashboard_theme_active_screen(void) { return guider_ui.dashboard; }
+lv_obj_t *dashboard_theme_active_screen(void) { return guider_ui.dashboard_Classic; }
 
 void dashboard_theme_set_switch_cb(dashboard_theme_switch_cb_t cb) { s_switch_cb = cb; }
 
@@ -53,7 +53,7 @@ static void fire_switch_cb(int idx)
 {
     if (!s_switch_cb) return;
     const dashboard_theme_t *t = s_reg[idx];
-    s_switch_cb(guider_ui.dashboard, t->music_tile ? t->music_tile() : NULL);
+    s_switch_cb(guider_ui.dashboard_Classic, t->music_tile ? t->music_tile() : NULL);
 }
 
 void dashboard_theme_adopt(int idx)
@@ -61,11 +61,11 @@ void dashboard_theme_adopt(int idx)
     if (s_count == 0) return;
     if (idx < 0 || idx >= s_count) idx = 0;
     s_active = idx;
-    /* The generated settings-exit nav loads *guider_ui.dashboard and rebuilds
+    /* The generated settings-exit nav loads *guider_ui.dashboard_Classic and rebuilds
      * it only when dashboard_del is set — keep it clear so the active theme
      * survives a Settings round-trip without being clobbered by
      * setup_scr_dashboard. */
-    guider_ui.dashboard_del = false;
+    guider_ui.dashboard_Classic_del = false;
     fire_switch_cb(idx);
 }
 
@@ -74,7 +74,7 @@ void dashboard_theme_build(int idx)
     if (s_count == 0) return;
     if (idx < 0 || idx >= s_count) idx = 0;
     const dashboard_theme_t *t = s_reg[idx];
-    if (t->create) guider_ui.dashboard = t->create();
+    if (t->create) guider_ui.dashboard_Classic = t->create();
     dashboard_theme_adopt(idx);
 }
 
@@ -84,21 +84,21 @@ void dashboard_theme_set(int idx)
     if (idx == s_active) return;
 
     const dashboard_theme_t *old     = (s_active >= 0) ? s_reg[s_active] : NULL;
-    lv_obj_t                *old_scr  = guider_ui.dashboard;
+    lv_obj_t                *old_scr  = guider_ui.dashboard_Classic;
     /* Are we looking at the dashboard right now? (false when the switch is
      * triggered from the Settings screen, which is the usual path.) */
     bool was_loaded = (old_scr && lv_scr_act() == old_scr);
 
     const dashboard_theme_t *t = s_reg[idx];
     lv_obj_t *new_scr = t->create ? t->create() : NULL;
-    guider_ui.dashboard     = new_scr;
-    guider_ui.dashboard_del = false;
+    guider_ui.dashboard_Classic     = new_scr;
+    guider_ui.dashboard_Classic_del = false;
     s_active = idx;
 
     if (was_loaded && new_scr) {
         /* Direct switch while the dashboard is on screen — load the rebuilt
          * one now. The Settings path skips this; the new screen shows when the
-         * user taps "exit", via the generated nav that loads guider_ui.dashboard. */
+         * user taps "exit", via the generated nav that loads guider_ui.dashboard_Classic. */
         lv_scr_load(new_scr);
         lv_obj_invalidate(new_scr);
     }
