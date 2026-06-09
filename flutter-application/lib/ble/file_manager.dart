@@ -71,8 +71,12 @@ class FileManager {
         _bulkRecv += (u.length - kChunkHeaderLen);
         _bulkProgress.add((recv: _bulkRecv, total: _bulkTotal));
         final out = _decoder.feed(u);
-        debugPrint('[files] chunk flags=$flags len=${u.length} recv=$_bulkRecv/$_bulkTotal'
-            '${out != null ? " -> body ${out.body.length}B sub=${out.body.isNotEmpty ? out.body[0] : -1}" : ""}');
+        // Log only the first chunk and the completed body — not every chunk
+        // (a big listing is hundreds of chunks).
+        if ((flags & ChunkFlags.start) != 0 || out != null) {
+          debugPrint('[files] bulk recv=$_bulkRecv/$_bulkTotal'
+              '${out != null ? " done ${out.body.length}B sub=${out.body.isNotEmpty ? out.body[0] : -1}" : " start"}');
+        }
         if (out != null && out.type == PduType.file) _bulk.add(out.body);
         return;
       }

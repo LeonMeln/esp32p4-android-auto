@@ -59,6 +59,7 @@ void port_start_app_hook(void)
 #include "log_capture.h"
 #include "mdns_advertise.h"
 #include "ota_http.h"
+#include "files_http.h"
 #include "ota_screen.h"
 #include "tcp_server.h"
 #include "touch_input.h"
@@ -462,6 +463,10 @@ void app_main(void)
      * scripts/ota_push.sh can hit http://<gw>/ota from a laptop on the
      * same AP. No-op when CONFIG_OTA_HTTP_ENABLED is unset. */
     ota_http_start();
+    /* Attach the web file manager (/files) to the OTA HTTP server — browse
+     * /vescfs + microSD from any browser on the SoftAP. No-op if the server
+     * didn't start. */
+    files_http_register(ota_http_get_server());
 
     /* Display sink first — it captures the panel handle from BSP and waits
      * idle until first frame. Then the H.264 pipe; push() is a no-op until

@@ -354,6 +354,9 @@ esp_err_t ota_http_start(void)
     cfg.send_wait_timeout = 30;
     cfg.lru_purge_enable  = true;
     cfg.stack_size        = 8192;
+    /* OTA registers 4 handlers; the web file manager (files_http_register)
+     * adds 7 more → bump past the default 8. */
+    cfg.max_uri_handlers  = 16;
 
     esp_err_t err = httpd_start(&s_server, &cfg);
     if (err != ESP_OK) {
@@ -385,8 +388,11 @@ esp_err_t ota_http_start(void)
     return ESP_OK;
 }
 
+httpd_handle_t ota_http_get_server(void) { return s_server; }
+
 #else  /* !CONFIG_OTA_HTTP_ENABLED */
 
 esp_err_t ota_http_start(void) { return ESP_OK; }
+httpd_handle_t ota_http_get_server(void) { return NULL; }
 
 #endif

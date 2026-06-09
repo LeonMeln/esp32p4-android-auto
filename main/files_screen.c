@@ -527,6 +527,34 @@ static void on_act_rename(lv_event_t *e)  { (void)e; open_rename_modal(); }
 static void on_act_move(lv_event_t *e)    { (void)e; enter_move_mode(); }
 static void on_act_delete(lv_event_t *e)  { (void)e; open_delete_confirm(); }
 
+/* Copy the selected file to /vescfs/splash.gif so it plays at boot. Works for a
+ * file on either drive (copies bytes — rename can't cross /sdcard↔/vescfs). */
+static void on_act_set_splash(lv_event_t *e)
+{
+    (void)e;
+    const char *dst = "/vescfs/splash.gif";
+    if (!app_fs_ready()) { dismiss_modal(); show_toast("Storage not ready"); return; }
+    if (strcmp(s_st.selected_path, dst) == 0) {
+        dismiss_modal(); show_toast("Already the boot splash"); return;
+    }
+    FILE *in = fopen(s_st.selected_path, "rb");
+    if (!in) { dismiss_modal(); show_toast("Cannot open file"); return; }
+    FILE *out = fopen(dst, "wb");
+    if (!out) { fclose(in); dismiss_modal(); show_toast("Cannot write /vescfs"); return; }
+    uint8_t *buf = malloc(4096);
+    bool ok = (buf != NULL);
+    size_t n;
+    while (ok && (n = fread(buf, 1, 4096, in)) > 0) {
+        if (fwrite(buf, 1, n, out) != n) ok = false;
+    }
+    free(buf);
+    fclose(in);
+    fclose(out);
+    if (!ok) unlink(dst);   /* don't leave a half-written splash behind */
+    dismiss_modal();
+    show_toast(ok ? "Set as boot splash — reboot to see it" : "Copy failed (space?)");
+}
+
 static void open_action_sheet(void)
 {
     lv_obj_t *m = make_modal_container(520, 460);
@@ -548,6 +576,8 @@ static void open_action_sheet(void)
     if (is_image_name(base)) {
         make_modal_button(m, "View image", on_act_image,
                           lv_color_hex(0x1f6feb), 20, y, bw, bh); y += bh + gap;
+        make_modal_button(m, "Set as boot splash", on_act_set_splash,
+                          lv_color_hex(0x2e7d32), 20, y, bw, bh); y += bh + gap;
     } else {
         make_modal_button(m, "Open as text", on_act_open,
                           lv_color_hex(0x1f6feb), 20, y, bw, bh); y += bh + gap;

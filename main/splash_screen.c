@@ -1,6 +1,6 @@
 #include "splash_screen.h"
 
-#include <unistd.h>   /* access() */
+#include <sys/stat.h>   /* stat() — LittleFS implements stat but NOT access() */
 
 #include "bsp/esp-bsp.h"
 #include "esp_log.h"
@@ -61,7 +61,11 @@ void splash_screen_show(void)
         ESP_LOGI(TAG, "storage not ready — no splash");
         return;
     }
-    if (access(SPLASH_PATH, F_OK) != 0) {
+    /* stat(), not access(): the esp_littlefs VFS implements stat_p but leaves
+     * access_p unset, so access() always fails on /vescfs even when the file is
+     * there — which is exactly why the splash was being skipped. */
+    struct stat st;
+    if (stat(SPLASH_PATH, &st) != 0) {
         ESP_LOGI(TAG, "no %s — no splash", SPLASH_PATH);
         return;
     }

@@ -9,6 +9,7 @@ idf_component_register(
         "ota_screen.c"
         "c6_ota.c"
         "ota_http.c"
+        "files_http.c"
         "aa_frame.c"
         "aa_tls.c"
         "aa_handshake.c"
@@ -74,6 +75,7 @@ idf_component_register(
         log_capture
         trip_log
         joltwallet__littlefs
+        json
 )
 
 # Reroute mbedTLS's UTCTime parser to our offset-tolerant wrapper. Required
