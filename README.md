@@ -61,9 +61,19 @@ that talks to the head unit over BLE, independently of Android Auto:
   metadata / album art mirrored onto the dashboard.
 - **Wall clock** — pushes local time over BLE so the dashboard shows `HH:MM`
   with no on-device RTC / coin cell.
-- **Firmware update over WiFi** — the P4 image is bundled in the APK and
-  flashed to the head unit over its SoftAP, straight from the phone. Creds
-  are read over BLE automatically, or entered / scanned manually.
+- **Firmware update over WiFi or BLE** — the P4 image is bundled in the APK and
+  flashed to the head unit over its SoftAP (creds read over BLE automatically,
+  or entered / scanned manually) or straight over the BLE link.
+- **Device file manager** — browse the head unit's storage (`/vescfs` internal
+  LittleFS + microSD) from the phone over BLE: list, download, upload, rename,
+  delete. This is how you drop a boot-splash GIF onto the device.
+
+### 🗂️ On-device file browser + boot splash
+- **File browser** on the head unit itself (*Settings → Files*) — touch-driven,
+  browses `/vescfs` (internal) and `/sdcard` (microSD): folders, sizes, image
+  preview, rename / move / delete.
+- **Boot splash** — drop an animated `splash.gif` into `/vescfs` and it plays
+  full-screen during boot, then hands off to the dashboard. Absent → normal boot.
 
 ### 📦 Under the hood
 - **Embedded co-firmwares**: ESP32-C6 (`esp-hosted` WiFi slave) and the
@@ -416,6 +426,22 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
   reboots onto the new version — keep it powered throughout. The bundled image
   is staged from `build/` by [`scripts/stage_firmware_asset.sh`](scripts/stage_firmware_asset.sh).
 
+### Device files & boot splash GIF
+
+Two ways to manage files on the head unit:
+
+- **On device**: *Settings → Files* — a touch file browser over `/vescfs`
+  (internal storage) and `/sdcard` (microSD if inserted). Browse, preview
+  images, rename / move / delete.
+- **From the phone**: *Home → Device files* (shown when connected to firmware
+  that supports it) — list folders, download to the phone, upload from the
+  phone, rename, delete, mkdir.
+
+**Set a startup GIF**: upload an animated GIF to `/vescfs` via *Device files*
+and name it **`splash.gif`** (upload it already named that, or rename it after
+upload). On the next boot it plays full-screen, then the dashboard takes over.
+Keep it small — `/vescfs` is ~4 MB on the Waveshare board, ~1 MB on jc4880.
+
 ---
 
 ## 🗺️ Roadmap / Status
@@ -428,7 +454,10 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 | VESC LISP poll | ✅ | Cruise indicator + custom stats (requires [`lisp/main.lisp`](lisp/main.lisp) on the controller) |
 | BLE NUS bridge (VESC Tool over BLE) | ✅ | Works concurrently with AA |
 | Companion app — notifications / media / clock bridge | ✅ | Flutter `aa_bridge` over BLE |
-| Companion app — firmware update over WiFi | ✅ | Bundled image POSTed to the head unit's SoftAP OTA endpoint |
+| Companion app — firmware update over WiFi / BLE | ✅ | Bundled image POSTed to the SoftAP OTA endpoint, or streamed over the BLE link |
+| On-device file browser (`/vescfs` + microSD) | ✅ | Touch UI in *Settings → Files*; image preview, rename / move / delete |
+| Companion app — file manager over BLE | ✅ | Browse / download / upload / rename / delete the head unit's storage from the phone |
+| Boot splash GIF | ✅ | Animated `/vescfs/splash.gif` shown during boot (upload via the app's file manager) |
 | Settings UI + PSRAM log viewer | ✅ | Logs survive resets, viewable on device |
 | HTTP OTA + on-screen progress | ✅ | `scripts/ota_push.sh` |
 | (Bonus) AA Wireless video (H.264) | ✅ | Native 800×480 @ ~10–15 fps; SW decode + RGB shuffle is the bottleneck |
