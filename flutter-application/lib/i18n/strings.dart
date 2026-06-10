@@ -178,6 +178,23 @@ const _en = <String, String>{
   'files.err.busy': 'Device is busy with another operation.',
   'files.err.toobig': 'File is too large for the device storage.',
   'files.err.unknown': 'Unknown error.',
+
+  'home.splash.title': 'Boot splash',
+  'splash.title': 'Boot splash',
+  'splash.intro':
+      'Pick a GIF: the app slices it into JPEG frames the head unit plays at '
+          'boot through its hardware decoder. A simple GIF can be used as a '
+          'fallback.',
+  'splash.set_animated': 'Set animated splash (from GIF)',
+  'splash.set_animated.sub': 'Slice a GIF into frames and upload (recommended)',
+  'splash.set_gif': 'Set simple GIF (fallback)',
+  'splash.set_gif.sub': 'Upload a raw GIF played by the slower decoder',
+  'splash.building': 'Slicing GIF into frames…',
+  'splash.clearing': 'Preparing folder…',
+  'splash.uploading': 'Uploading frames…',
+  'splash.done': 'Boot splash updated — reboot the head unit to see it.',
+  'splash.reboot_hint': 'Reboot the head unit to see the new splash.',
+  'splash.err.decode': 'Could not read that GIF.',
 };
 
 const _ru = <String, String>{
@@ -345,6 +362,23 @@ const _ru = <String, String>{
   'files.err.busy': 'Устройство занято другой операцией.',
   'files.err.toobig': 'Файл слишком велик для хранилища устройства.',
   'files.err.unknown': 'Неизвестная ошибка.',
+
+  'home.splash.title': 'Заставка загрузки',
+  'splash.title': 'Заставка загрузки',
+  'splash.intro':
+      'Выберите GIF: приложение нарежет его на JPEG-кадры, которые магнитола '
+          'проигрывает при старте через аппаратный декодер. Простой GIF можно '
+          'оставить как запасной вариант.',
+  'splash.set_animated': 'Анимация из GIF',
+  'splash.set_animated.sub': 'Нарезать GIF на кадры и загрузить (рекомендуется)',
+  'splash.set_gif': 'Простой GIF (запасной)',
+  'splash.set_gif.sub': 'Загрузить сырой GIF — проигрывается медленным декодером',
+  'splash.building': 'Нарезаю GIF на кадры…',
+  'splash.clearing': 'Готовлю папку…',
+  'splash.uploading': 'Загружаю кадры…',
+  'splash.done': 'Заставка обновлена — перезагрузите магнитолу, чтобы увидеть.',
+  'splash.reboot_hint': 'Перезагрузите магнитолу, чтобы увидеть новую заставку.',
+  'splash.err.decode': 'Не удалось прочитать этот GIF.',
 };
 
 const _tables = <String, Map<String, String>>{

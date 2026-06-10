@@ -176,6 +176,8 @@ static lv_obj_t *settings_can_speed_dropdown = NULL;
 static lv_obj_t *settings_can_speed_label = NULL;
 static lv_obj_t *settings_theme_dropdown = NULL;
 static lv_obj_t *settings_theme_label = NULL;
+static lv_obj_t *settings_splash_loops_dropdown = NULL;
+static lv_obj_t *settings_splash_loops_label = NULL;
 static lv_obj_t *settings_brightness_slider = NULL;
 static lv_obj_t *settings_brightness_label = NULL;
 static lv_obj_t *settings_controller_id_slider = NULL;
@@ -1268,6 +1270,25 @@ static void theme_dropdown_event_cb(lv_event_t *e) {
     debounced_commit_schedule(&s_theme_commit, settings_wrapper_persist_dashboard_theme);
 }
 
+/* Boot-splash repeats dropdown. Index → repeat count; 0 = off. Applies on the
+ * next boot (read by main/splash_screen.c at startup). */
+static const uint8_t s_splash_loop_opts[] = {0, 1, 2, 3, 5};
+#define SPLASH_LOOP_OPT_COUNT (sizeof(s_splash_loop_opts) / sizeof(s_splash_loop_opts[0]))
+
+static uint16_t splash_loops_to_index(uint8_t loops) {
+    for (uint16_t i = 0; i < SPLASH_LOOP_OPT_COUNT; i++) {
+        if (s_splash_loop_opts[i] == loops) return i;
+    }
+    return 1;   /* default: "1" */
+}
+
+static void splash_loops_dropdown_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+    uint16_t sel = lv_dropdown_get_selected(lv_event_get_target(e));
+    if (sel >= SPLASH_LOOP_OPT_COUNT) sel = 1;
+    settings_wrapper_set_splash_loops(s_splash_loop_opts[sel]);
+}
+
 /* Public entry from the dashboard's invisible full-screen brightness drag
  * slider (events_init_dashboard). Shares the s_brightness_commit debounce
  * timer with the settings-page slider so a fast drag doesn't queue two
@@ -2111,6 +2132,7 @@ static void reset_button_event_cb(lv_event_t *e) {
         settings_wrapper_set_motor_poles(7); // Standard for VESC
         settings_wrapper_set_power_max_kw(4.5f);
         settings_wrapper_set_dashboard_theme(0); // Cockpit
+        settings_wrapper_set_splash_loops(1);     // play boot splash once
 
         // Update UI elements
         if (s_target_id_field.label)        num_field_set(&s_target_id_field, 10);
@@ -2123,6 +2145,9 @@ static void reset_button_event_cb(lv_event_t *e) {
         }
         if (settings_theme_dropdown) {
             lv_dropdown_set_selected(settings_theme_dropdown, 0);
+        }
+        if (settings_splash_loops_dropdown) {
+            lv_dropdown_set_selected(settings_splash_loops_dropdown, splash_loops_to_index(1));
         }
         dashboard_theme_set(0);   // live-switch back to cockpit
         if (settings_brightness_slider) {
@@ -2299,6 +2324,24 @@ void settings_ui_init(lv_ui *ui) {
     lv_obj_set_style_border_width(settings_theme_dropdown, 0, 0);
     lv_obj_set_style_radius(settings_theme_dropdown, 8, 0);
     lv_obj_add_event_cb(settings_theme_dropdown, theme_dropdown_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    y_pos += SETTINGS_ROW_H;
+
+    // ========== Boot Splash Repeats ==========
+    settings_splash_loops_label = settings_heading_create(ui->settings, y_pos, "Boot splash repeats:");
+
+    settings_splash_loops_dropdown = lv_dropdown_create(ui->settings);
+    lv_dropdown_set_options(settings_splash_loops_dropdown, "Off\n1\n2\n3\n5");
+    lv_dropdown_set_selected(settings_splash_loops_dropdown,
+                             splash_loops_to_index(settings_wrapper_get_splash_loops()));
+    lv_obj_set_pos(settings_splash_loops_dropdown, 400, y_pos + 5);
+    lv_obj_set_size(settings_splash_loops_dropdown, 390, 50);
+    lv_obj_set_style_bg_color(settings_splash_loops_dropdown, lv_color_hex(0x2a3440), 0);
+    lv_obj_set_style_text_color(settings_splash_loops_dropdown, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(settings_splash_loops_dropdown, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_border_width(settings_splash_loops_dropdown, 0, 0);
+    lv_obj_set_style_radius(settings_splash_loops_dropdown, 8, 0);
+    lv_obj_add_event_cb(settings_splash_loops_dropdown, splash_loops_dropdown_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     y_pos += SETTINGS_ROW_H;
 

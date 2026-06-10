@@ -46,6 +46,10 @@ uint8_t              settings_get_second_head_id(void);
  * stored index could outrun the registry after a firmware downgrade. */
 uint8_t              settings_get_dashboard_theme(void);
 
+/* Boot-splash repeats: how many times the animated splash loops before the UI
+ * is revealed. 0 = splash disabled entirely. Default 1. */
+uint8_t              settings_get_splash_loops(void);
+
 /* Wall-clock API. RTC-only — relies on the vbat_experiment poke in
  * main.c to keep LP domain alive on USB-unplug via the CR2032 on H8.
  * If that experiment doesn't pan out on this silicon, time(NULL)
@@ -70,6 +74,7 @@ void settings_set_use_fahrenheit(bool on);
 void settings_set_second_head_enabled(bool on);
 void settings_set_second_head_id(uint8_t id);
 void settings_set_dashboard_theme(uint8_t theme);
+void settings_set_splash_loops(uint8_t loops);
 
 /* Debounced setters — update the RAM cache and fire any hot-apply callback
  * immediately, but DO NOT touch NVS. The UI pairs them with the matching

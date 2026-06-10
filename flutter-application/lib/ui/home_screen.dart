@@ -11,6 +11,7 @@ import 'app_filter_screen.dart';
 import 'device_files_screen.dart';
 import 'firmware_update_screen.dart';
 import 'pairing_screen.dart';
+import 'splash_setup_screen.dart';
 import 'test_panel.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -209,16 +210,33 @@ class _HomeScreenState extends State<HomeScreen> {
               if (!connected || !BleService.instance.supportsFileManager) {
                 return const SizedBox.shrink();
               }
-              return Card(
-                child: ListTile(
-                  leading: const Icon(Icons.folder_open),
-                  title: Text(t(context, 'home.files.title')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const DeviceFilesScreen()),
+              return Column(
+                children: [
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.folder_open),
+                      title: Text(t(context, 'home.files.title')),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const DeviceFilesScreen()),
+                      ),
+                    ),
                   ),
-                ),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.gif_box_outlined),
+                      title: Text(t(context, 'home.splash.title')),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const SplashSetupScreen()),
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),

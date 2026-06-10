@@ -94,6 +94,10 @@ void    settings_wrapper_set_second_head_id(uint8_t id);
 uint8_t settings_wrapper_get_dashboard_theme(void);
 void    settings_wrapper_set_dashboard_theme(uint8_t theme);
 
+/* Boot-splash repeats: 0 = off, N = play the animated splash N times at boot. */
+uint8_t settings_wrapper_get_splash_loops(void);
+void    settings_wrapper_set_splash_loops(uint8_t loops);
+
 uint32_t settings_wrapper_get_clock_secs_of_day(void);
 void     settings_wrapper_set_clock_secs_of_day(uint32_t secs_of_day);
 
