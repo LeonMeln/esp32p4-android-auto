@@ -5,6 +5,7 @@
 #include "esp_hosted.h"
 #include "esp_hosted_misc.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "host/ble_gap.h"
 #include "host/ble_hs.h"
 #include "host/util/util.h"
@@ -92,6 +93,11 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
                  (unsigned)event->subscribe.conn_handle,
                  (unsigned)event->subscribe.attr_handle,
                  event->subscribe.cur_notify);
+        /* Gate NUS forwarding on a real subscription so a notifications-only
+         * peer doesn't get spammed with VESC RT-poll responses. Ignored for
+         * non-NUS handles (NotifBridge). */
+        ble_nus_on_subscribe(event->subscribe.attr_handle,
+                             event->subscribe.cur_notify);
         return 0;
 
     case BLE_GAP_EVENT_CONN_UPDATE:
@@ -100,9 +106,26 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
 
     case BLE_GAP_EVENT_NOTIFY_TX:
         if (event->notify_tx.status != 0) {
-            ESP_LOGW(TAG, "notify_tx err: status=%d attr=%u",
-                     event->notify_tx.status,
-                     (unsigned)event->notify_tx.attr_handle);
+            /* On a congested or flaky link EVERY notification completion lands
+             * here with status=ENOMEM(6). This callback runs in the NimBLE host
+             * task (prio configMAX-4 = 21, far above the prio-6 LVGL worker), so
+             * logging each one — synchronous console write + PSRAM ring copy
+             * under a spinlock — lets this high-prio task drown the CPU in
+             * logging instead of draining the BLE event queue, starving the UI
+             * (the dashboard visibly freezes). Aggregate to one line/sec. */
+            static int64_t  s_last_us;
+            static unsigned s_suppressed;
+            s_suppressed++;
+            int64_t now = esp_timer_get_time();
+            if (now - s_last_us > 1000000) {
+                ESP_LOGW(TAG, "notify_tx err: status=%d attr=%u (x%u in last %lld ms)",
+                         event->notify_tx.status,
+                         (unsigned)event->notify_tx.attr_handle,
+                         s_suppressed,
+                         s_last_us ? (now - s_last_us) / 1000 : 0);
+                s_last_us = now;
+                s_suppressed = 0;
+            }
         }
         return 0;
 

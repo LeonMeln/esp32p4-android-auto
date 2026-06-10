@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "host/ble_gatt.h"
@@ -34,6 +35,16 @@ void ble_nus_gatts_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg);
  * on connect / disconnect so notifications target the right peer. */
 void ble_nus_on_connect(uint16_t conn_handle);
 void ble_nus_on_disconnect(void);
+
+/* Subscription tracking — call from ble_host's GAP event hook on every
+ * BLE_GAP_EVENT_SUBSCRIBE. forward_response stays a no-op until a peer
+ * actually enables notifications on the NUS TX characteristic. Without this
+ * a notifications-only peer (the phone, which uses NotifBridge and never
+ * touches NUS) would still receive a flood of VESC RT-poll responses pushed
+ * at it — every one failing with notify_tx ENOMEM and back-pressuring the
+ * CAN dispatch task. attr_handle is matched against the NUS TX value handle;
+ * other handles (NotifBridge chars) are ignored. */
+void ble_nus_on_subscribe(uint16_t attr_handle, bool cur_notify);
 
 /* Push a reassembled VESC payload back to the phone over the NUS TX
  * characteristic (frames it with packet_build_frame and chunks by MTU-3).

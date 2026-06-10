@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/ringbuf.h"
 #include "freertos/task.h"
@@ -61,6 +62,11 @@ static const ble_uuid128_t NUS_TX_UUID = BLE_UUID128_INIT(
 
 static uint16_t        s_tx_val_handle;
 static uint16_t        s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+/* Whether the peer enabled notifications on the NUS TX characteristic. The
+ * phone connects for NotifBridge (time / notification icons) and never
+ * subscribes to NUS — so without this gate we'd push the continuous VESC
+ * RT-poll stream at it, each notify failing and stalling the CAN dispatch. */
+static volatile bool   s_tx_subscribed;
 static packet_parser_t s_rx_parser;
 
 static void rx_packet_complete(const uint8_t *payload, uint16_t len)
@@ -177,8 +183,18 @@ static void tx_rb_drain(void)
 void ble_nus_on_disconnect(void)
 {
     ESP_LOGI(TAG, "peer disconnected");
-    s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+    s_conn_handle  = BLE_HS_CONN_HANDLE_NONE;
+    s_tx_subscribed = false;
     tx_rb_drain();
+}
+
+void ble_nus_on_subscribe(uint16_t attr_handle, bool cur_notify)
+{
+    /* Only the NUS TX characteristic gates forwarding; ignore CCCD writes on
+     * NotifBridge characteristics (the phone subscribes to those, not NUS). */
+    if (s_tx_val_handle == 0 || attr_handle != s_tx_val_handle) return;
+    s_tx_subscribed = cur_notify;
+    ESP_LOGI(TAG, "NUS TX notifications %s", cur_notify ? "enabled" : "disabled");
 }
 
 /* Notify one chunk, retrying on transient NimBLE pool pressure. Returns
@@ -246,8 +262,21 @@ static void nus_tx_task(void *arg)
                                                  ? chunk : (framed_len - off));
             int rc = notify_chunk_with_retry(framed + off, this_chunk);
             if (rc != 0) {
-                ESP_LOGW(TAG, "notify rc=%d off=%u/%u — dropping rest of frame",
-                         rc, (unsigned)off, (unsigned)framed_len);
+                /* A flaky link makes every frame time out here; CAN keeps
+                 * feeding us, so without a gate this floods the console and
+                 * the PSRAM log ring (pushing out useful history). Aggregate
+                 * to one line/sec with a dropped-frame count. */
+                static int64_t  s_last_us;
+                static unsigned s_dropped;
+                s_dropped++;
+                int64_t now = esp_timer_get_time();
+                if (now - s_last_us > 1000000) {
+                    ESP_LOGW(TAG, "notify rc=%d off=%u/%u — dropped %u frame(s) in last %lld ms",
+                             rc, (unsigned)off, (unsigned)framed_len, s_dropped,
+                             s_last_us ? (now - s_last_us) / 1000 : 0);
+                    s_last_us = now;
+                    s_dropped = 0;
+                }
                 break;
             }
             off += this_chunk;
@@ -279,6 +308,11 @@ void ble_nus_forward_response(const uint8_t *data, uint16_t len)
     if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE || s_tx_val_handle == 0) {
         return;
     }
+    /* Nobody listening on NUS TX (e.g. a notifications-only phone). Drop
+     * silently — otherwise the continuous CAN RT-poll stream gets queued and
+     * notified into the void, flooding notify_tx errors and back-pressuring
+     * this very call path (the CAN dispatch task). */
+    if (!s_tx_subscribed) return;
     if (len == 0) return;
     if (!s_tx_rb) {
         ESP_LOGW(TAG, "forward called before init — dropping %u B", len);

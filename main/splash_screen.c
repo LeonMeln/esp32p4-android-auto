@@ -98,8 +98,26 @@ void splash_screen_show(void)
 void splash_screen_hide(void)
 {
     if (!s_overlay && !s_safety_timer) return;
-    if (bsp_display_lock(1000) != ESP_OK) {
-        ESP_LOGW(TAG, "display lock timeout — splash will auto-hide");
+
+    /* Tear down deterministically — do NOT bail on a single short lock
+     * timeout. The prio-6 LVGL worker outranks the prio-1 main task, so the
+     * instant ui_mode_init() releases the lock the worker grabs it to paint
+     * the freshly-loaded ~1700-widget dashboard, and that first full 800×480
+     * render holds the lock well past 1 s. A short attempt here would time out
+     * and leave teardown to the safety timer — but that timer is an LVGL timer,
+     * and auto-reconnect pauses the LVGL worker on the first AA video frame
+     * before it ever fires (paused worker → lv_timer_handler stops → timer
+     * never runs). The black top-layer overlay would then be stranded over
+     * every LVGL screen forever: the idle "Waiting for phone" text and the VESC
+     * dashboard both show as a black screen, while only the direct-to-panel AA
+     * video punches through. This runs at boot, long before any phone connects,
+     * so it's safe to wait as long as it takes to grab the lock and tear down. */
+    bool locked = false;
+    for (int attempt = 0; attempt < 10 && !locked; attempt++) {
+        locked = (bsp_display_lock(1000) == ESP_OK);
+    }
+    if (!locked) {
+        ESP_LOGW(TAG, "display lock unavailable — splash left to safety timer");
         return;  /* safety timer still pending */
     }
     teardown_locked();
